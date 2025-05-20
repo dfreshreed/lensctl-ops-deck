@@ -16,7 +16,7 @@ headers = {'content-type': 'application/json'}
 token_url = 'https://login.lens.poly.com/oauth/token'
 graphQL_url = 'https://api.silica-prod01.io.lens.poly.com/graphql/'
 tenant_id = os.getenv("TENANT_ID")
-site_id = os.gentenv("SITE_ID")
+site_id = os.getenv("SITE_ID")
 client_id = os.getenv("CLIENT_ID")
 client_secret = os.getenv("CLIENT_SECRET")
 
@@ -49,6 +49,7 @@ def update_rooms():
         capacity
         size
         updatedAt
+        floor
         }
       }
     """
@@ -60,7 +61,7 @@ def update_rooms():
           "id": row.get("id"),
           "capacity": row.get("capacity"),
           "size": row.get("size"),
-          "floor": str(row.get("floor")) if not pd.isna(row.get("floor")) else None #convert number to string
+          "floor": str(row.get("floor")) if not pd.isna(row.get("floor")) else None #convert number to string to avoid NaN GQL errors
         }
 
       # build the payload structure
