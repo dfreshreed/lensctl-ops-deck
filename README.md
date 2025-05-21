@@ -1,6 +1,6 @@
 # 🔍 Lens API Python
 
-A Python script (`update_room_data.py`) that reads room metadata from a CSV file and adds or updates room records programmatically using the Lens API `upsertRoom` mutation.
+This Python script (`update_room_data.py`) reads room metadata from a `.csv` file and adds or updates room records programmatically using the Lens API `upsertRoom` mutation.
 
 ---
 
@@ -18,39 +18,33 @@ A Python script (`update_room_data.py`) that reads room metadata from a CSV file
 - Python 3.8+
 - `requests`, `pandas`, `python-dotenv`, `coloredlogs`, `pygments`
 
-Install all requirements:
-
-```bash
-pip install -r requirements.txt
-```
-
 ### ⚙️ Setup Steps
 
 To use the script, follow these setup steps (in order):
 
-1. Clone the repo
+#### Clone the repo
 
 ```bash
 git clone https://github.com/dfreshreed/lens-api-python.git
 cd lens-api-python
 ```
 
-2. Setup virtual environment
+#### Setup virtual environment
 
-Setting up a virtual environment is important to prevent dependency conflicts and avoid distrupting your global Python install.
+This is important to prevent dependency conflicts and avoid distrupting your global Python install.
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
 
-3. Install dependencies
+#### Install dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-4. Set environment variables
+#### Set environment variables
 
 Copy the template and fill in your API credentials
 
@@ -86,6 +80,8 @@ Expected types and data format:
 | `size`     | Enum    | One of: NONE, FOCUS, HUDDLE, SMALL, MEDIUM, LARGE          |
 | `floor`    | String  | Name of the floor the room is on (e.g. "1", "2nd", "Main") |
 
+---
+
 ## 🧠 Usage
 
 After you've added your `.env` variables and updated the `room_data.csv` file, run:
@@ -95,7 +91,11 @@ source venv/bin/activate
 python update_room_data.py
 ```
 
+---
+
 ## 🧪 Example Output
+
+When running the script, the response (from each mutation sent) will print to the CLI. The example below shows the response for the first `.csv` row (index 0).  
 
 ```bash
 2025-05-20 09:15:11 dfr-machine.local __main__[84359] INFO Row 0 updated:
