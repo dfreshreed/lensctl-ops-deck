@@ -1,22 +1,42 @@
 # 🔍 Lens API Python
 
-This Python script (`update_room_data.py`) reads room metadata from a `.csv` file and adds or updates room records programmatically using the Lens API `upsertRoom` mutation.
+This Python script is designed to help you update the metadata fields for rooms in your Lens Tenant.
+
+The script launches a CLI tool that provides you the option to query all rooms or update rooms. Both options utilize the `room_data.csv` file found in the root directory.
+
+The `upsertRoom` mutation requires `tenantId` and `siteId` arguments. It also utilizes the `roomId` (not room name) to update the metadata. If you haven't already pulled these details down, you'll want to start with option 1️⃣ `Export your Lens Room data to CSV`
+
+If you already have the `tenantId`, `siteId`, `roomId`, feel free to edit the `room_data.csv` file with the information.
 
 ---
 
 ## 🚀 Features
 
-- Reads room data from a CSV file
 - Authenticates using OAuth2 client credentials
-- Sends the `upsertRoom` mutation to update room metadata
+- Exports all rooms from your Lens tenant and writes the data to `room_data.csv`
+- Reads room data from `room_data.csv` and sends the `upsertRoom` mutation
 - Colorized output for logging and error reporting
+
+---
+
+## 📁 Project Structure
+
+```
+lens-api-python/
+├── room_tool.py  # Main script
+├── requirements.txt     # Python dependencies
+├── room_data.csv        # Sample input file
+├── .env.example         # Example environment variable file
+├── .gitignore           # Files and folders to ignore in git
+└── README.md            # Project documentation
+```
 
 ---
 
 ## 📦 Requirements
 
 - Python 3.8+
-- `requests`, `pandas`, `python-dotenv`, `coloredlogs`, `pygments`
+- `requests`, `pandas`, `python-dotenv`, `coloredlogs`, `pygments`, `rich`
 
 ### ⚙️ Setup Steps
 
@@ -46,19 +66,19 @@ pip install -r requirements.txt
 
 #### Set environment variables
 
-Copy the template and fill in your API credentials
+Copy `.env.example` to create a local `.env`
 
 ```bash
-cp .env.template .env
+cp .env.example .env
 ```
 
-Edit `.env`:
+Replace the placeholder text with your API Credentials, Tenant ID, and Site ID `.env`:
 
 ```bash
 CLIENT_ID=your-client-id
 CLIENT_SECRET=your-client-secret
 TENANT_ID=your-tenant-id
-SITE_ID=your-site-id
+SITE_ID=your-site-id #only required if you're batching this process by site
 ```
 
 #### 📂 CSV Format
@@ -66,10 +86,12 @@ SITE_ID=your-site-id
 Your `room_data.csv` should contain the following headers:
 
 ```
-id,capacity,size,floor
+id,capacity,size,floor, siteId
 ```
 
-Each row represents one room to update. The `room_data.csv` included in this repo contains four rows of example data. You don't have to edit or use this `.csv`. However, if you're replacing the file included in this project, make sure your columns match the expected format and rename it to `room_data.csv` (the script expects that `.csv` file name).
+The `room_data.csv` included in this repo contains four rows of example data; each row represents one room to update. You don't have to edit or use this `.csv`.
+
+However, if you're replacing the file included in this project, make sure your columns match the expected format and rename it to `room_data.csv` (the script expects that file name).
 
 Expected types and data format:
 
@@ -95,23 +117,11 @@ python update_room_data.py
 
 ## 🧪 Example Output
 
-When running the script, the response (from each mutation sent) will print to the CLI. The example below shows the response for the first `.csv` row (index 0).  
+When running the script, the response (from each mutation sent) will print to the CLI.
 
-```bash
-2025-05-20 09:15:11 dfr-machine.local __main__[84359] INFO Row 0 updated:
-{
-  "data": {
-    "upsertRoom": {
-      "name": "Room 1",
-      "id": "8f366119-...a",
-      "capacity": 4,
-      "size": "SMALL",
-      "updatedAt": "2025-05-06T21:27:15.589Z",
-      "floor": "1"
-    }
-  }
-}
-```
+> **Note:** The image below shows the successful responses for the (four) rows in the example `room_data.csv`. If you try running this script using the example `room_data.csv` as is, you will get errors as you don't have access to these room Ids.
+
+![Success Output Example](assets/response-cli-output.png)
 
 ## 🛡️ Security
 
