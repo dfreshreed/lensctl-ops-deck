@@ -19,7 +19,7 @@ Running the script provides the following options:
 
 ![CLI Prompt Options](assets/roomTrooperMenu.png)
 
- 0. Exit the script
+ 0. `Exit the script`
  1. `Export your Lens Room Data to CSV` - Runs a `query` that returns all rooms from your Lens tenant and writes them to a `room_data.csv`.
     - `roomName` and `siteName` are returned alongside their `Ids` and written to `room_data.csv`. This makes it easier for you to identify the room and provide `capacity`, `size`, and `floor` values for import.
  2. `Update your Lens Room Data from CSV` - Reads the rooms data from `room_data.csv` and runs a `mutation` to update them in Lens.

@@ -22,7 +22,7 @@ console = Console()
 def bootup():
     droid_ascii = f"""
         ____                                              [--------------- TASK LIST ---------------]
-       / () \\                                             [ 0. Exit                                 ]
+       / () \\                                             [ 0. Exit the script                      ]
      _|______|_      [ UNIT: RT-L-T ]                     [ 1. Export your Lens Rooms data to CSV   ]
     | | ==== | |     [ STATUS: ONLINE ]                   [ 2. Update your Lens Rooms data from CSV ]
     | |   o  | |     [ LINK: /dev/roomsbus ]              [-----------------------------------------]
