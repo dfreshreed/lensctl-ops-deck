@@ -140,7 +140,7 @@ python room_trooper.py
 ```
 
 ---
-## Windows-Specific Notes
+## 🖥️ Windows-Specific Notes
 
 If you're on Windows:
 
@@ -171,4 +171,4 @@ The CLI will output styled responses, showing GraphQL success/error details:
 
 ## 🛡️ Security
 
-Never commit your `.env` file. It's already been added to the .gitignore for safety.
+Never commit your `.env` file. It's already been added to the `.gitignore` for safety.
