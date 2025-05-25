@@ -42,6 +42,7 @@ headers["authorization"] = f"Bearer {request_token.json()['access_token']}"
 def export_rooms():
     logger.info("Starting room export to csv")
     all_rooms = []
+    total_rooms_exported = 0
     cursor = None
 
     export_query = """
@@ -91,6 +92,7 @@ def export_rooms():
         for edge in edges:
             node = edge["node"]
             logger.info(f"Node: {node}")
+            total_rooms_exported += 1
             all_rooms.append(
                 {
                     "name": node.get("name"),
@@ -102,6 +104,7 @@ def export_rooms():
                     "siteId": node.get("site", {}).get("id"),
                 }
             )
+
         has_next = page_info.get("hasNextPage", False)
         cursor = page_info.get("endCursor")
 
@@ -122,6 +125,7 @@ def export_rooms():
     else:
         logger.warning("No room data found RUH ROH!")
     logger.info("🏁 export_rooms() completed successfully.")
+    logger.info(f"Total Rooms Exported: {total_rooms_exported}")
 
 
 # GRAPHQL Mutation: Update Rooms
@@ -131,8 +135,8 @@ def update_rooms():
     try:
         dataframe = pd.read_csv("./room_data.csv")
     # handle any errors
-    except Exception as e:
-        logger.error(f"Failed to read csv: {e}")
+    except Exception as ex:
+        logger.error(f"Failed to read csv: {ex}")
         sys.exit(1)
 
     # the lens api mutation to update room metadata

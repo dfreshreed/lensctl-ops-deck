@@ -3,6 +3,7 @@ import sys
 import logging
 import coloredlogs
 from dotenv import load_dotenv
+from rich.console import Console
 
 # ------------------
 # load environment variables
@@ -28,12 +29,16 @@ def get_required_env(var_name: str) -> str:
     return value
 
 
+# ------------------
+# helper functions for CLI tool formatting
 INDENT = "  "
 
+console = Console()
 
-def print_indented(text: str) -> None:
+
+def print_indented(text: str, style: str = "") -> None:
     for line in text.splitlines():
-        print(f"{INDENT}{line}")
+        console.print(f"{INDENT}{line}", style=style)
 
 
 def prompt_with_indent(prompt: str) -> str:
