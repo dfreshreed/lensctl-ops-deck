@@ -67,14 +67,14 @@ cd lens-api-python
 
 This is important to prevent dependency conflicts and avoid distrupting your global Python install.
 
-**On Mac/Linux**
+##### **On Mac/Linux**:
 
 ```bash
-python3 -m venv venv
+python3 -m venv venv # unless you've aliased python=python3 in your shell config
 source venv/bin/activate
 ```
 
-**On Windows**
+##### **On Windows**:
 
 ```bash
 python -m venv venv
@@ -101,20 +101,18 @@ Replace the placeholder text with your API Credentials, Tenant ID, and Site ID `
 CLIENT_ID=your-client-id
 CLIENT_SECRET=your-client-secret
 TENANT_ID=your-tenant-id
-SITE_ID=your-site-id #only required if you're batching this process by site
+SITE_ID=your-site-id # only required if you're batching this process by site
 ```
 
 #### 📂 CSV Format
 
-Your `room_data.csv` should contain the following headers:
+If you don't `export` your rooms using the script, rename your `.csv` to `room_data.csv` (the script expects this filename) and verify it contains the following headers required for `import`:
+
+> If you are batching room updates by site (instead of all rooms in the tenant), you can add the `siteId` to the `.env` and exclude it from the `.csv` header.
 
 ```
-id,capacity,size,floor, siteId
+id,capacity,size,floor,siteId
 ```
-
-The `room_data.csv` included in this repo contains four rows of example data; each row represents one room to update. You don't have to edit or use this `.csv`.
-
-However, if you're replacing the file included in this project, make sure your columns match the expected format and rename it to `room_data.csv` (the script expects that file name).
 
 Expected types and data format:
 
@@ -133,9 +131,12 @@ Expected types and data format:
 Run the script after configuring your `.env` variables:
 
 ```bash
-source venv/bin/activate # Mac/Linux
-venv\Scripts\activate    # Windows
+# Mac/Linux
+source venv/bin/activate
+python3 room_trooper.py
 
+# Windows
+venv\Scripts\activate
 python room_trooper.py
 ```
 
@@ -160,13 +161,34 @@ If you're on Windows:
 
 ## 🧪 Example Output
 
-When running the script, the response (from each mutation sent) will print to the CLI.
-
 The CLI will output styled responses, showing GraphQL success/error details:
+
+Export:
 
 ```css
 [DROID] RT-L-T fully operational.
 [DROID] Exported 4 rooms to room_data.csv.
+```
+
+Import:
+
+```css
+2025-05-24 23:52:56 | [INFO] | Row 0 updated:
+{
+  "data": {
+    "upsertRoom": {
+      "name": "Daniel Reed Desk",
+      "id": "03b9975c-5b2a-4007-9ef1-034ec756d3b4",
+      "capacity": 1,
+      "size": "SMALL",
+      "updatedAt": "2025-05-25T03:52:56.794Z",
+      "floor": "1"
+    }
+  }
+}
+
+2025-05-24 23:52:56 | [INFO] | 🏁 update_rooms() completed successfully with no errors.
+
 ```
 
 ## 🛡️ Security

@@ -8,12 +8,12 @@ from rich.panel import Panel
 from rich.console import Console
 from rich.live import Live
 from rich.align import Align
-from rich.prompt import Prompt
 from typing import List, Optional
 import itertools
 
 # Global Feature Flags
 DARK_MODE = False
+INITIAL_LOOP = True
 
 # CLI Menu
 console = Console()
@@ -63,15 +63,34 @@ def bootup():
     time.sleep(1.2)
 
 
+def show_menu():
+    droid_ascii = f"""
+        ____                                              [--------------- TASK LIST ---------------]
+       / () \\                                             [ 0. Exit the script                      ]
+     _|______|_      [ UNIT: RT-L-T ]                     [ 1. Export your Lens Rooms data to CSV   ]
+    | | ==== | |     [ STATUS: ONLINE ]                   [ 2. Update your Lens Rooms data from CSV ]
+    | |   o  | |     [ LINK: /dev/roomsbus ]              [-----------------------------------------]
+"""
+    console.clear()
+    console.print(
+        Panel(
+            Align.center(Text(droid_ascii, style="cyan")),
+            border_style="bright_black",
+            title="[bold cyan] ROOM TROOPER :: LENS ROOMS CONFIG TERMINAL [/bold cyan]",
+            subtitle="[dim] Clone it. Update it. Move along.",
+            padding=(1, 3),
+        )
+    )
+
+
 def print_goodbye():
-    jarjar_ascii = """
-        o_o
-       / ^ \\
-      /(<->)\\
-     // \\ / \\\\
-    //  ) (  \\\\
-    ` _/   \\_ '
-        """
+    jarjar_ascii = Text()
+    jarjar_ascii.append("    o_o\n", style="bold yellow")
+    jarjar_ascii.append("   / ^ \\\n", style="bold orange3")
+    jarjar_ascii.append("  /(<->)\\\n", style="bold orange3")
+    jarjar_ascii.append(" // \\ / \\\\\n", style="bold orange3")
+    jarjar_ascii.append("//  ) (  \\\\\n", style="bold orange3")
+    jarjar_ascii.append("` _/   \\_ '\n", style="bold orange3")
     goodbye_text = [
         "",
         "",
@@ -86,7 +105,7 @@ def print_goodbye():
 
     console.print(
         Panel(
-            Align.center(table, style="yellow"),
+            Align.center(table, style="white"),
             border_style="bright_black",
             padding=(0, 3),
             title="ROOM TROOPER :: EXITING SEQUENCE COMPLETE",
@@ -102,6 +121,7 @@ def droid_prompt(
     cursor_duration: float = 2.5,
 ) -> str:
     global DARK_MODE
+    global INITIAL_LOOP
 
     prompt_prefix = (
         "[bold red][TROOPER][/bold red]"
@@ -112,27 +132,22 @@ def droid_prompt(
     cursor_color = "red" if DARK_MODE else "white"
     cursor_cycle = itertools.cycle(["▌", " "])
 
-    with Live(refresh_per_second=4) as live:
-        start_time = time.time()
-        while time.time() - start_time < cursor_duration:
-            cursor = next(cursor_cycle)
-            live.update(
-                Text.from_markup(
-                    f"[dim]{prompt_prefix} Initializing input...[/dim]",
-                    style=cursor_color,
+    if INITIAL_LOOP:
+        with Live(refresh_per_second=4) as live:
+            start_time = time.time()
+            while time.time() - start_time < cursor_duration:
+                cursor = next(cursor_cycle)
+                live.update(
+                    Text.from_markup(
+                        f"[dim]{prompt_prefix} Initializing input...[/dim]",
+                        style=cursor_color,
+                    )
                 )
-            )
-            time.sleep(0.4)
-    time.sleep(delay)
-    # return Prompt.ask(f"{prompt_prefix} {question}", choices=choices)
-    # Fake prompt blink
-    # for _ in range(3):
-    #     console.print(f"{prompt_prefix} {question} ▌", end=" ")
-    #     time.sleep(0.4)
-    #     console.print(f"{prompt_prefix} {question}   ", end=" ")
-    #     time.sleep(0.4)
-
+                time.sleep(0.4)
+        time.sleep(delay)
+        INITIAL_LOOP = False
     console.print(" " * console.width, end="\r")
+
     console.print(f"{prompt_prefix} {question}", end=" ", highlight=False)
     answer = input()
     return answer.strip()
@@ -140,19 +155,24 @@ def droid_prompt(
 
 def main():
     bootup()
-    choice = droid_prompt("Enter task selection [0,1,2] >")
-    choice = choice.strip()
-    if choice == "1":
-        console.print("[green] Exporting Rooms...[/green]")
-        export_rooms()
-    elif choice == "2":
-        console.print("[green] Updating Room Metadata...[/green]")
-        update_rooms()
-    elif choice == "0":
-        print_goodbye()
-        sys.exit(1)
-    else:
-        print_indented("❌ Invalid choice. Please try again.", style="red bold")
+    while True:
+        choice = droid_prompt("Enter task selection [0,1,2] >")
+        choice = choice.strip()
+        if choice == "1":
+            console.print("[green] Exporting Rooms...[/green]")
+            export_rooms()
+            console.input("[dim]Press Enter to return to main menu[/dim]")
+            show_menu()
+        elif choice == "2":
+            console.print("[green] Updating Room Metadata...[/green]")
+            update_rooms()
+            console.input("[dim]Press Enter to return to main menu[/dim]")
+            show_menu()
+        elif choice == "0":
+            print_goodbye()
+            sys.exit(1)
+        else:
+            print_indented("❌ Invalid choice. Please try again.", style="red bold")
 
 
 if __name__ == "__main__":
