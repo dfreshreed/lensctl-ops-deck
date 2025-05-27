@@ -2,6 +2,7 @@
 
 The `room_trooper.py` script is designed to help you manage room metadata in your Lens Tenant. It allows you to query and update rooms. Fields like `capacity`, `size`, and `floor` are crucial for Lens Insights and Analytics. If your Tenant has rooms without this data, this tool helps you handle updating them efficiently.
 
+Installation and usage are fairly straightforward - **don't be intimidated by the length and detail in this README*!* It's intentionally verbose to accomodate a wide range of experience levels.
 ---
 
 ## 🚀 Features
@@ -35,14 +36,14 @@ If you already have the `tenantId`, `siteId`, `roomId`, feel free to edit the `r
 
 ```
 lens-api-python/
-├── room_trooper.py                # CLI script and main file you'll run
+├── room_trooper.py                # Main file containing CLI script you'll use
 ├── requirements.txt               # Python dependencies
 ├── room_data.csv                  # CSV used for import and export
 ├── .env.example                   # Example environment variable file
-├── .gitignore                     # Files and folders to ignore in git
-├── update_room_data.py            # File containing query and mutation logic
-├── env_helper_util.py             # File containing helper functions
-└── README.md                      # Project documentation
+├── .gitignore                     # Files and folders git ignores
+├── update_room_data.py            # Query and mutation logic
+├── env_helper_util.py             # Helper functions
+└── README.md                      # Project docs
 ```
 
 ---
@@ -51,7 +52,7 @@ lens-api-python/
 
 - Python 3.8+
 - `requests`, `pandas`, `python-dotenv`, `coloredlogs`, `pygments`, `rich`
-
+> To save you time and reduce complexity, the project inlcudes a `requirements.txt` file that automatically installs all required Python packages and libaries.
 ## ⚙️ Setup Steps
 
 To use the script, follow these setup steps (in order):
