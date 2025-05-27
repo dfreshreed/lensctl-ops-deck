@@ -102,8 +102,8 @@ def export_rooms():
                     "capacity": node.get("capacity"),
                     "size": node.get("size"),
                     "floor": node.get("floor"),
-                    "siteName": node.get("site", {}).get("name"),
-                    "siteId": node.get("site", {}).get("id"),
+                    "siteName": (node.get("site") or {}).get("name"),
+                    "siteId": (node.get("site") or {}).get("id"),
                 }
             )
 
