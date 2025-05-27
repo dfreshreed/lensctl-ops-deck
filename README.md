@@ -52,42 +52,55 @@ lens-api-python/
 - Python 3.8+
 - `requests`, `pandas`, `python-dotenv`, `coloredlogs`, `pygments`, `rich`
 
-### ⚙️ Setup Steps
+## ⚙️ Setup Steps
 
 To use the script, follow these setup steps (in order):
 
-#### Clone the repo
+### 1️⃣ Clone the Repo
 
 ```bash
 git clone https://github.com/dfreshreed/lens-api-python.git
 cd lens-api-python
 ```
 
-#### Setup virtual environment
+### 2️⃣ Setup Virtual Environment
 
 This is important to prevent dependency conflicts and avoid distrupting your global Python install.
 
-##### **On Mac/Linux**:
+#### **On Mac/Linux**:
 
 ```bash
 python3 -m venv venv # unless you've aliased python=python3 in your shell config
 source venv/bin/activate
 ```
 
-##### **On Windows**:
+#### **On Windows - Command Prompt (cmd.exe)**:
 
-```bash
+```bat
 python -m venv venv
-venv\Scripts\activate
+venv\Scripts\activate.bat
 ```
 
-#### Install dependencies
+#### **On Windows - Powershell (pwsh)**:
+
+```powershell
+python -m venv venv
+venv\Scripts\Activate.ps1
+```
+
+> **Note for Powershell Users:**
+> If you see an error about script execution policies, run this command first:
+> ```powershell
+> Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+> ```
+
+### 3️⃣ Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-#### Set environment variables
+### 4️⃣ Set Environment Variables
 
 Copy `.env.example` to create a local `.env`
 
@@ -104,9 +117,9 @@ TENANT_ID=your-tenant-id
 SITE_ID=your-site-id # only required if you're batching this process by site
 ```
 
-#### 📂 CSV Format
+### 5️⃣ CSV Format
 
-If you don't `export` your rooms using the script, rename your `.csv` to `room_data.csv` (the script expects this filename) and verify it contains the following headers required for `import`:
+If you don't use the script to `export` your rooms, rename **your** `.csv` to `room_data.csv` (the script expects this filename) and verify it contains the following required headers:
 
 > If you are batching room updates by site (instead of all rooms in the tenant), you can add the `siteId` to the `.env` and exclude it from the `.csv` header.
 
@@ -130,33 +143,40 @@ Expected types and data format:
 
 Run the script after configuring your `.env` variables:
 
+### **On Mac/Linux**
+
 ```bash
-# Mac/Linux
 source venv/bin/activate
 python3 room_trooper.py
+```
+### **On Windows - Command Prompt (cmd.exe)**
 
-# Windows
-venv\Scripts\activate
+```cmd
+venv\Scripts\activate.bat
+python room_trooper.py
+```
+### **On Windows - Powershell (pwsh)**
+
+```powershell
+venv\Scripts\Activate.ps1
 python room_trooper.py
 ```
 
 ---
 ## 🖥️ Windows-Specific Notes
 
-If you're on Windows:
-
 - Use `python` instead of `python3`
-- Activate the virtual environment with:
-    ```bash
-    venv\Scripts\activate
-    ```
-- Save CSV files as UTF-8 (not UTF-16/ANSI). In Excel, select:
-"CSV UTF-8 (Comma delimited) (*.csv)"
-- If you see weird line breaks, run:
+- Activate the virtual environment with the correct script for your shell:
+    - cmd → `activate.bat`
+    - PowerShell → `Activate.ps1`
+- Save CSV files as **UTF-8** format in Excel:
+`CSV UTF-8 (Comma delimited) (*.csv)`
+- If you see weird line breaks, run this to fix Windows line endings:
 
     ```bash
     git config core.autocrlf true
     ```
+  > 💡 Works in `cmd`, `PowerShell`, or `Git Bash`
 ---
 
 ## 🧪 Example Output
