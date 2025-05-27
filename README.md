@@ -2,7 +2,8 @@
 
 The `room_trooper.py` script is designed to help you manage room metadata in your Lens Tenant. It allows you to query and update rooms. Fields like `capacity`, `size`, and `floor` are crucial for Lens Insights and Analytics. If your Tenant has rooms without this data, this tool helps you handle updating them efficiently.
 
-Installation and usage are fairly straightforward - **don't be intimidated by the length and detail in this README*!* It's intentionally verbose to accomodate a wide range of experience levels.
+Installation and usage are fairly straightforward-**don't be intimidated by the length and detail in this README!** It's intentionally verbose to accomodate a wide range of experience levels.
+
 ---
 
 ## 🚀 Features
