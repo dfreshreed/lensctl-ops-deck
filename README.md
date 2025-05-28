@@ -31,7 +31,7 @@ Running the script provides the following options:
 
    > Options 1 and 2 utilize the `room_data.csv` file in the project root directory.
 
-If you already have the `tenantId`, `siteId`, `roomId`, feel free to edit the `room_data.csv` file with the information found in [CSV Format](./README.md#-csv-format).
+If you already have the `tenantId`, `siteId`, `roomId`, feel free to edit the `room_data.csv` file with the information found in [CSV Format](#5️⃣-csv-format).
 
 ---
 
@@ -55,7 +55,7 @@ lens-api-python/
 
 ### Python 3.8+
 
-If you don't already have Python 3.8+ installed on your system, you'll need to install it first. Visit [python.org]("https://www.python.org/downloads/") for the latest installers.
+If you don't already have Python 3.8+ installed on your system, you'll need to install it first. Visit [python.org](https://www.python.org/downloads/) for the latest installers.
 
   > When manually installing Python 3.8+, make sure to **add Python to your system's PATH** during installation
 
@@ -78,7 +78,7 @@ Follow these setup steps (in order) prior to using the `room_trooper.py` script:
 This project uses Git for version control. If you don't already have Git installed, you'll need to install it before cloning the repository.
 
 - For **macOS**, you can install Git using Homebrew: `brew install git`
-- For **Windows**, download and install Git from [git-scm.com]("https://git-scm.com/downloads")
+- For **Windows**, download and install Git from [git-scm.com](https://git-scm.com/downloads)
 
 After installing Git, confirm it's installed by running: `git --version`
 ```bash
@@ -144,9 +144,10 @@ SITE_ID=your-site-id # only required if you're batching this process by site
 
 ### 5️⃣ CSV Format
 
-If you don't use the script to `export` your rooms, rename **your** `.csv` to `room_data.csv` (the script expects this filename), verify it contains the required headers (listed below), and replace the project `room_data.csv` file with yours.
-
-> If you are batching room updates by site (instead of all rooms in the tenant), you can add the `siteId` to the `.env` and exclude it from the `.csv` header.
+If you want to use the script to `update` your rooms using your own csv, ensure the following:
+- rename **your** `.csv` to `room_data.csv` (the script expects this filename)
+- verify it contains the required headers (listed below)
+- remove the project's `room_data.csv` and replace it with yours.
 
 ```
 id,capacity,size,floor,siteId
@@ -161,6 +162,9 @@ Expected types and data format:
 | `size`     | Enum    | One of: NONE, FOCUS, HUDDLE, SMALL, MEDIUM, LARGE          |
 | `floor`    | String  | Name of the floor the room is on (e.g. "1", "2nd", "Main") |
 | `siteId`    | String  | The Site ID associated with the Room (optional if in .env) |
+
+
+> If you are batching room updates by site (instead of all rooms in the tenant), you can add the `siteId` to the `.env` and exclude it from the `.csv` header.
 
 ---
 
