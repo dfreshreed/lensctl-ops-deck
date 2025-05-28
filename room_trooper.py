@@ -49,7 +49,7 @@ def bootup():
                 expand=True,
             )
             live.update(panel)
-            time.sleep(0.7)
+            time.sleep(0.4)
     console.clear()
     console.print(
         Panel(
@@ -60,7 +60,7 @@ def bootup():
             padding=(1, 3),
         )
     )
-    time.sleep(1.2)
+    time.sleep(0.7)
 
 
 def show_menu():
@@ -91,6 +91,7 @@ def print_goodbye():
     jarjar_ascii.append(" // \\ / \\\\\n", style="bold orange3")
     jarjar_ascii.append("//  ) (  \\\\\n", style="bold orange3")
     jarjar_ascii.append("` _/   \\_ '\n", style="bold orange3")
+
     goodbye_text = [
         "",
         "",
@@ -107,8 +108,8 @@ def print_goodbye():
         Panel(
             Align.center(table, style="white"),
             border_style="bright_black",
-            padding=(0, 3),
-            title="ROOM TROOPER :: EXITING SEQUENCE COMPLETE",
+            padding=(1, 3),
+            title="[bold cyan]ROOM TROOPER :: EXITING SEQUENCE COMPLETE [/bold cyan]",
             expand=True,
         )
     )
@@ -116,9 +117,8 @@ def print_goodbye():
 
 def droid_prompt(
     question: str = "Select Task",
-    choices: Optional[List[str]] = None,
-    delay: float = 1.5,
-    cursor_duration: float = 2.5,
+    delay: float = 0.4,
+    cursor_duration: float = 1.0,
 ) -> str:
     global DARK_MODE
     global INITIAL_LOOP
@@ -143,7 +143,7 @@ def droid_prompt(
                         style=cursor_color,
                     )
                 )
-                time.sleep(0.4)
+                time.sleep(0.2)
         time.sleep(delay)
         INITIAL_LOOP = False
     console.print(" " * console.width, end="\r")
