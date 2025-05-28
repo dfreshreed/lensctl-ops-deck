@@ -136,6 +136,9 @@ cp .env.example .env
 Replace the placeholder text with your API Credentials, Tenant ID, and Site ID `.env`:
 
 ```bash
+LENS_EP=https://api.silica-prod01.io.lens.poly.com/graphql
+AUTH_URL=https://login.lens.poly.com/oauth/token
+
 CLIENT_ID=your-client-id
 CLIENT_SECRET=your-client-secret
 TENANT_ID=your-tenant-id
