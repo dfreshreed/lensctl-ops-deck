@@ -134,6 +134,8 @@ def export_rooms():
     console_log(
         f"[blue]Total Rooms Exported:[/blue] [yellow]{total_rooms_exported}[/yellow]"
     )
+    console.input("[dim]Press Enter to return to main menu[/dim]")
+    return
 
 
 # GRAPHQL Mutation: Update Rooms
