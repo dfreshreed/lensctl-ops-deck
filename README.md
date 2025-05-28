@@ -53,15 +53,34 @@ lens-api-python/
 
 ## 📦 Requirements
 
-- Python 3.8+
-- `requests`, `pandas`, `python-dotenv`, `coloredlogs`, `pygments`, `rich`
-> To save you time and reduce complexity, the project inlcudes a `requirements.txt` file that automatically installs all required Python packages and libaries.
+### Python 3.8+
+
+If you don't already have Python 3.8+ installed on your system, you'll need to install it first. Visit [python.org]("https://www.python.org/downloads/") for the latest installers.
+
+  > When manually installing Python 3.8+, make sure to **add Python to your system's PATH** during installation
+
+  - **On Windows:** the Python installer provides the option **"Add Python to PATH"** -- be sure to check the box during setup
+
+  - **On MacOS:** the Python installer usually handles PATH setup. You might need to add Python to your shell profile manually if using a package manager like **Homebrew**
+
+After installing Python 3.8+, confirm it's installed by running `python --version` (or `python3 --version` on macOS/Linux)
+
+### Dependencies found in `requirements.txt`
+
+To save you time and reduce complexity, the project inlcudes a `requirements.txt` file which contains the required dependencies.
+
 ## ⚙️ Setup Steps
 
-To use the script, follow these setup steps (in order):
+Follow these setup steps (in order) prior to using the `room_trooper.py` script:
 
 ### 1️⃣ Clone the Repo
 
+This project uses Git for version control. If you don't already have Git installed, you'll need to install it before cloning the repository.
+
+- For **macOS**, you can install Git using Homebrew: `brew install git`
+- For **Windows**, download and install Git from [git-scm.com]("https://git-scm.com/downloads")
+
+After installing Git, confirm it's installed by running: `git --version`
 ```bash
 git clone https://github.com/dfreshreed/lens-api-python.git
 cd lens-api-python
@@ -69,7 +88,7 @@ cd lens-api-python
 
 ### 2️⃣ Setup Virtual Environment
 
-This is important to prevent dependency conflicts and avoid distrupting your global Python install.
+This is important to prevent dependency conflicts and avoid potentially distrupting your global Python install.
 
 #### **On Mac/Linux**:
 
@@ -100,6 +119,8 @@ venv\Scripts\Activate.ps1
 
 ### 3️⃣ Install Dependencies
 
+Run this command to install the required dependencies:
+
 ```bash
 pip install -r requirements.txt
 ```
@@ -123,7 +144,7 @@ SITE_ID=your-site-id # only required if you're batching this process by site
 
 ### 5️⃣ CSV Format
 
-If you don't use the script to `export` your rooms, rename **your** `.csv` to `room_data.csv` (the script expects this filename) and verify it contains the following required headers:
+If you don't use the script to `export` your rooms, rename **your** `.csv` to `room_data.csv` (the script expects this filename), verify it contains the required headers (listed below), and replace the project `room_data.csv` file with yours.
 
 > If you are batching room updates by site (instead of all rooms in the tenant), you can add the `siteId` to the `.env` and exclude it from the `.csv` header.
 
