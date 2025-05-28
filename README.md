@@ -166,25 +166,27 @@ Expected types and data format:
 
 ## 🧠 Usage
 
-Run the script after configuring your `.env` variables:
+Before running the script, remember to activate the virtual environment:
 
-### **On Mac/Linux**
+
 
 ```bash
-source venv/bin/activate
-python3 room_trooper.py
+source venv/bin/activate  # Mac/Linux
+venv\Scripts\activate.bat # Windows cmd
+venv\Scripts\Activate.ps1 # Windows PowerShell
 ```
-### **On Windows - Command Prompt (cmd.exe)**
 
-```cmd
-venv\Scripts\activate.bat
-python room_trooper.py
+If your virtual environment (venv) is activated, you'll see a `(venv)` prefix in your terminal, like this:
+
+```bash
+(venv) ➜  lens-api-python $
 ```
-### **On Windows - Powershell (pwsh)**
 
-```powershell
-venv\Scripts\Activate.ps1
-python room_trooper.py
+Then you can run the script:
+
+```bash
+python3 room_trooper.py #Mac/Linux
+python room_trooper.py # Windows
 ```
 
 ---
