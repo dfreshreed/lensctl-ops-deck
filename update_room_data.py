@@ -166,6 +166,7 @@ def update_rooms():
     """
 
     errors_occurred = False
+
     # loop through each csv row
     for index, row in dataframe.iterrows():
         fields = {
@@ -211,3 +212,5 @@ def update_rooms():
         console_log(
             "⚠️ update_rooms() completed with one or more errors.", style="yellow"
         )
+    console.input("[dim]Press Enter to return to main menu[/dim]")
+    return
