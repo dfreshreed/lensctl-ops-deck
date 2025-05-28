@@ -156,18 +156,15 @@ def droid_prompt(
 def main():
     bootup()
     while True:
-        choice = droid_prompt("Enter task selection [0,1,2] >")
-        choice = choice.strip()
+        show_menu()
+        choice = droid_prompt("Enter task selection [0,1,2] >").strip()
+
         if choice == "1":
             console.print("[green] Exporting Rooms...[/green]")
             export_rooms()
-            console.input("[dim]Press Enter to return to main menu[/dim]")
-            show_menu()
         elif choice == "2":
             console.print("[green] Updating Room Metadata...[/green]")
             update_rooms()
-            console.input("[dim]Press Enter to return to main menu[/dim]")
-            show_menu()
         elif choice == "0":
             print_goodbye()
             sys.exit(1)

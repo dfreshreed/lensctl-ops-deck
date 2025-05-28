@@ -146,7 +146,8 @@ def update_rooms():
     # handle any errors
     except Exception as ex:
         logger.error(f"Failed to read csv: {ex}")
-        sys.exit(1)
+        console.input("[dim]Press Enter to return to main menu[/dim]")
+        return
 
     # the lens api mutation to update room metadata
     graphql_mutation = """
