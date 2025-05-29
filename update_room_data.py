@@ -1,6 +1,6 @@
 import pandas as pd
 import requests
-import sys
+import os
 import json
 from pygments import highlight
 from pygments.lexers import JsonLexer
@@ -20,7 +20,7 @@ graphQL_url = get_required_env("LENS_EP")
 
 # tenant identifiers
 tenant_id = get_required_env("TENANT_ID")
-site_id = get_required_env("SITE_ID")
+site_id = os.getenv("SITE_ID")
 
 # OAuth Creds
 client_id = get_required_env("CLIENT_ID")
@@ -142,6 +142,8 @@ def export_rooms():
 # for each row in the csv, map the data to the expected graphql argument field name, and send the request
 def update_rooms():
     total_rooms_imported = 0
+    total_errors = 0
+    all_errors = []
     # read the csv
     try:
         dataframe = pd.read_csv("./room_data.csv")
@@ -191,16 +193,22 @@ def update_rooms():
             json_str = json.dumps(data, indent=2)
             highlighted = highlight(json_str, JsonLexer(), TerminalFormatter())
             if "errors" in data:
-                # log the error if present
-                logger.error(f"GraphQL error at row {index}: \n{highlighted}")
+                # log GQL errors
+                gql_error = f"GraphQL error at row {index}: \n{highlighted}"
+                logger.error(gql_error)
+                all_errors.append(gql_error)
                 errors_occurred = True
+                total_errors += 1
             else:
-                # log the success if no error
+                # log successful GQL response
                 logger.info(f"Row {index} updated: \n{highlighted}")
+        # log network or HTTP errors
         except requests.RequestException as err:
-            logger.error(f"Request error at row {index}: {err}")
+            http_err = f"Request error at row {index}: {err}"
+            logger.error(http_err)
+            all_errors.append(http_err)
             errors_occurred = True
-
+            total_errors += 1
     if not errors_occurred:
         console_log(
             "🏁 [magenta]update_rooms()[/magenta] [blue]completed successfully with no errors.[/blue]"
@@ -210,7 +218,7 @@ def update_rooms():
         )
     else:
         console_log(
-            "⚠️ update_rooms() completed with one or more errors.", style="yellow"
+            f"⚠️ update_rooms() [red]failed with[/red] [yellow]{total_errors}[/yellow] [red]error(s).[/red]"
         )
     console.input("[dim]Press Enter to return to main menu[/dim]")
     return
