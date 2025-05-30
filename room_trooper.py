@@ -103,7 +103,7 @@ def print_goodbye():
     goodbye_block = "\n".join(goodbye_text)
     table = Table.grid(padding=(0, 6))
     table.add_row(jarjar_ascii, goodbye_block)
-
+    console.clear()
     console.print(
         Panel(
             Align.center(table, style="white"),
