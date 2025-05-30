@@ -171,15 +171,55 @@ def update_rooms():
 
     # loop through each csv row
     for index, row in dataframe.iterrows():
+        # log row for debugging
+        console_log(f"Sending row {index}: {row.to_dict()}", style="dim")
+
+        # Pull each value once for finalizing types
+        raw_id = row.get("id")
+        raw_capacity = row.get("capacity")
+        raw_size = row.get("size")
+        raw_floor = row.get("floor")
+        raw_site = row.get("siteId")
+
+        # if in .env use it, otherwise use the csv and convert to string or set to None
+        site_id_value = (
+            site_id if site_id else (str(raw_site) if pd.notna(raw_site) else None)
+        )
+        # if capacity is missing -> None, otherwise validate integer and convert to null (none) with warning
+        capacity_series = pd.to_numeric(pd.Series([raw_capacity]), errors="coerce")
+        capacity_number = capacity_series.iloc[0]
+        capacity_value = None if pd.isna(capacity_number) else int(capacity_number)
+
+        if (
+            pd.isna(capacity_number)
+            and not pd.isna(raw_capacity)
+            and str(raw_capacity).strip()
+        ):
+            console_log(
+                f"[yellow]Warning:[/yellow] row {index} had [green]'capacity'[/green]:"
+                f"[red]'{raw_capacity}'[/red], which isn't a number. "
+                "It's been set to [blue]null[/blue] (None). "
+                "See README › CSV Format: https://github.com/dfreshreed/lens-room-trooper "
+                "for expected types. "
+                "Fix value in [green]room_data.csv[/green] and run the import again.",
+                style="bold",
+            )
+
+        # if no csv value use enum defined value
+        size_value = raw_size or "NONE"
+
+        # if floor is missing -> None, otherwise ensure string if floors are numbered
+        floor_value = None if pd.isna(raw_floor) else str(int(raw_floor))
+
         fields = {
             "tenantId": tenant_id,
-            "siteId": row.get("siteId") or site_id,
-            "id": row.get("id"),
-            "capacity": row.get("capacity"),
-            "size": row.get("size"),
-            # convert number to string to avoid NaN GQL errors
-            "floor": str(row.get("floor")) if not pd.isna(row.get("floor")) else None,
+            "siteId": site_id_value,
+            "id": raw_id,
+            "capacity": capacity_value,
+            "size": size_value,
+            "floor": floor_value,
         }
+
         total_rooms_imported += 1
 
         # build the payload structure
