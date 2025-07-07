@@ -82,7 +82,7 @@ This project uses Git for version control. If you don't already have Git install
 
 After installing Git, confirm it's installed by running: `git --version`
 ```bash
-git clone https://github.com/dfreshreed/lens-api-python.git
+git clone https://github.com/dfreshreed/lens-room-trooper.git
 cd lens-api-python
 ```
 
@@ -130,7 +130,10 @@ pip install -r requirements.txt
 Copy `.env.example` to create a local `.env`
 
 ```bash
-cp .env.example .env
+cp .env.example .env # Mac/Linux
+copy .env.example .env # Windows cmd
+Copy-Item .env.example .env # Windows PowerShell
+
 ```
 
 Replace the placeholder text with your API Credentials, Tenant ID, and Site ID `.env`:
@@ -192,7 +195,7 @@ If your virtual environment (venv) is activated, you'll see a `(venv)` prefix in
 Then you can run the script:
 
 ```bash
-python3 room_trooper.py #Mac/Linux
+python3 room_trooper.py # Mac/Linux
 python room_trooper.py # Windows
 ```
 
