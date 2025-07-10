@@ -1,6 +1,6 @@
-# 🔍 Lens Room Trooper
+# 🤖 Lens Room Trooper
 
-🤖 **Your droid companion for managing Lens Tenant room data**
+**Your droid companion for managing Lens Tenant room data**
 
 The `room_trooper.py` script helps you manage room metadata within your Lens Tenant. It lets you query and update fields like `capacity`, `size`, and `floor`, essential for Lens Insights and Analytics. If your Tenant has rooms without this data, this tool helps you efficiently update them.
 
@@ -24,14 +24,14 @@ Running the script provides the following options:
 ![CLI Prompt Options](assets/roomTrooperMenu.png)
 
  0. `Exit the script`
- 1. `Export your Lens Room Data to CSV` - Runs a `query` that returns all rooms from your Lens tenant and writes them to a `room_data.csv`.
-    - `roomName` and `siteName` are returned alongside their `Ids` and written to `room_data.csv`. This makes it easier for you to identify the room and provide `capacity`, `size`, and `floor` values for import.
- 2. `Update your Lens Room Data from CSV` - Reads the rooms data from `room_data.csv` and runs a `mutation` to update them in Lens.
-    - For each room imported, the `roomId`, `tenantId` and `siteId` are **required**. The `roomName` and `siteName` aren't used, even if they're in the `.csv`.
+ 1. `Export your Lens Room Data to CSV`
+    - Runs a `query` that returns all rooms from your Lens tenant and writes them to `room_data.csv`
+    - `roomName` and `siteName` are returned alongside their `Ids` to make it easier for you to identify the room and update the `capacity`, `size`, and `floor` values
+ 2. `Update your Lens Room Data from CSV`
+    - Reads the room data from `room_data.csv` and runs a `mutation` to update them in Lens.
+    - For each room imported, the `roomId`, `tenantId` and `siteId` are **required**.
 
    > Options 1 and 2 utilize the `room_data.csv` file in the project root directory.
-
-If you already have the `tenantId`, `siteId`, `roomId`, feel free to edit the `room_data.csv` file with the information found in [CSV Format](#5️⃣-csv-format).
 
 ---
 
@@ -145,19 +145,18 @@ AUTH_URL=https://login.lens.poly.com/oauth/token
 CLIENT_ID=your-client-id
 CLIENT_SECRET=your-client-secret
 TENANT_ID=your-tenant-id
-SITE_ID=your-site-id # only required if you're batching this process by site
+SITE_ID=your-site-id # use this if you want to update rooms by site. otherwise, you can remove it.
 ```
 
 ### 5️⃣ CSV Format
 
-If you want to use the script to `update` your rooms using your own csv, ensure the following:
+If you want to use the script to update your rooms using your own `.csv`, ensure the following:
 - rename **your** `.csv` to `room_data.csv` (the script expects this filename)
-- verify it contains the required headers (listed below)
+- verify it contains the required headers
+  - `id,capacity,size,floor,siteId`
 - remove the project's `room_data.csv` and replace it with yours.
 
-```
-id,capacity,size,floor,siteId
-```
+
 
 Expected types and data format:
 
@@ -170,7 +169,7 @@ Expected types and data format:
 | `siteId`    | String  | The Site ID associated with the Room (optional if in .env) |
 
 
-> If you are batching room updates by site (instead of all rooms in the tenant), you can add the `siteId` to the `.env` and exclude it from the `.csv` header.
+> By default, the script returns all rooms in your Lens Tenant. If you prefer to batch the process by Site, you can add the `siteId` to the `.env` and exclude it from the `.csv` header.
 
 ---
 
@@ -247,7 +246,3 @@ Import:
 2025-05-24 23:52:56 | [INFO] | 🏁 update_rooms() completed successfully with no errors.
 
 ```
-
-## 🛡️ Security
-
-Never commit your `.env` file. It's already been added to the `.gitignore` for safety.
