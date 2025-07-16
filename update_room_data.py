@@ -1,45 +1,57 @@
-import pandas as pd
-import requests
-import os
 import json
+import requests
+import pandas as pd
 from pygments import highlight
-from pygments.lexers import JsonLexer
 from pygments.formatters import TerminalFormatter
-from rich.traceback import install
-from rich.console import Console
-from env_helper_util import get_required_env, logger, console_log, pretty_node_deets
+from pygments.lexers import JsonLexer
+from utils.env_helper import logger, console_log, pretty_node_deets, console
+import utils.auth as auth
+from utils.obi_site_kenobi import resolve_site
 
-install()  # colorize uncaught exceptions and tracebacks
-console = Console()
+# lens api query to lookup room data
+EXPORT_ROOMS = """
+query getRoomData($params: RoomConnectionParams) {
+  tenants {
+    roomData(params: $params) {
+      pageInfo {
+        hasNextPage
+        endCursor
+      }
+      edges {
+        node {
+          name
+          id
+          site {
+            name
+            id
+          }
+          capacity
+          size
+          floor
+        }
+      }
+    }
+  }
+}
+"""
 
-headers = {"content-type": "application/json"}
-
-# Lens GraphQL and Auth endpoints
-token_url = get_required_env("AUTH_URL")
-graphQL_url = get_required_env("LENS_EP")
-
-# tenant identifiers
-tenant_id = get_required_env("TENANT_ID")
-site_id = os.getenv("SITE_ID")
-
-# OAuth Creds
-client_id = get_required_env("CLIENT_ID")
-client_secret = get_required_env("CLIENT_SECRET")
-
-# exchange lens api creds for access_token
-request_token = requests.post(
-    token_url,
-    headers=headers,
-    json={
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "grant_type": "client_credentials",
-    },
-)
-
-# store token in headers variable
-headers["authorization"] = f"Bearer {request_token.json()['access_token']}"
-
+# lens api mutation to update room metadata
+UPDATE_ROOMS = """
+mutation updateRoomData($fields: UpsertRoomRequest!) {
+  upsertRoom(fields: $fields) {
+    name
+    id
+    capacity
+    size
+    updatedAt
+    floor
+    site {
+      id
+      name
+    }
+  }
+}
+"""
 
 def export_rooms():
     logger.info("Starting room export to csv")
@@ -47,42 +59,19 @@ def export_rooms():
     total_rooms_exported = 0
     cursor = None
 
-    export_query = """
-    query getRoomData($params: RoomConnectionParams) {
-      tenants {
-        roomData(params: $params) {
-          pageInfo {
-            hasNextPage
-            endCursor
-          }
-          edges {
-            node {
-              name
-              id
-              site {
-                name
-                id
-              }
-              capacity
-              size
-              floor
-            }
-          }
-        }
-      }
-    }
-    """
-
     while True:
         payload = {
-            "query": export_query,
+            "query": EXPORT_ROOMS,
             "variables": {"params": {"cursor": cursor, "paging": "NEXT_PAGE"}},
         }
-        response = requests.post(graphQL_url, json=payload, headers=headers)
-        response.raise_for_status()
+        try:
+            response = requests.post(auth.GRAPHQL_URL, json=payload, headers=auth.get_headers())
+            response.raise_for_status()
+        except requests.RequestException as err:
+            logger.error(f"Export request failed: {err}")
+            break
         data = response.json()
-
-        if "errors" in data:
+        if data.get("errors"):
             logger.error(f"GraphQL error:\n{json.dumps(data['errors'], indent=2)}")
             break
 
@@ -144,56 +133,60 @@ def update_rooms():
     total_rooms_imported = 0
     total_errors = 0
     all_errors = []
+
     # read the csv
     try:
         dataframe = pd.read_csv("./room_data.csv")
+        site_name_to_id = {}
+        site_id_to_name = {}
     # handle any errors
     except Exception as ex:
         logger.error(f"Failed to read csv: {ex}")
         console.input("[dim]Press Enter to return to main menu[/dim]")
         return
 
-    # the lens api mutation to update room metadata
-    graphql_mutation = """
-    mutation updateRoomData($fields: UpsertRoomRequest!) {
-      upsertRoom(fields: $fields) {
-        name
-        id
-        capacity
-        size
-        updatedAt
-        floor
-        }
-      }
-    """
-
     errors_occurred = False
 
     # loop through each csv row
     for index, row in dataframe.iterrows():
         # log row for debugging
-        console_log(f"Sending row {index}: {row.to_dict()}", style="dim")
+        console_log(f"Row read from CSV {index}: {row.to_dict()}", style="dim")
 
         # Pull each value once for finalizing types
         raw_id = row.get("id")
+        raw_name = row.get("name")
         raw_capacity = row.get("capacity")
         raw_size = row.get("size")
         raw_floor = row.get("floor")
         raw_site = row.get("siteId")
+        raw_site_name = row.get("siteName")
 
-        # if in .env use it, otherwise use the csv and convert to string or set to None
-        site_id_value = (
-            site_id if site_id else (str(raw_site) if pd.notna(raw_site) else None)
-        )
-        # if capacity is missing -> None, otherwise validate integer and convert to null (none) with warning
+        console_log(f"🔍 Resolving site for '{raw_site_name}':'{raw_site}'…", style="dim")
+
+        try:
+            site_id_value = resolve_site(raw_site, raw_site_name, site_name_to_id, site_id_to_name)
+        except requests.RequestException as http_error:
+            logger.error(f"Row {index}: HTTP error during site resolution: {http_error}")
+            if http_error.response is not None:
+                logger.debug(f"Reponse body:\n{http_error.response.text}")
+            all_errors.append(f"row {index}: {http_error}")
+            total_errors +=1
+            continue
+        except Exception as err:
+            logger.error(f"Row {index}: site resolution failed: {err}")
+            all_errors.append(f"row {index}: {err}")
+            total_errors += 1
+            continue
+
+        room_id_value = None if pd.isna(raw_id) else str(raw_id)
+
+        # if capacity is missing set it to None. otherwise, validate integer and convert to null (none) with warning on failure
         capacity_series = pd.to_numeric(pd.Series([raw_capacity]), errors="coerce")
         capacity_number = capacity_series.iloc[0]
         capacity_value = None if pd.isna(capacity_number) else int(capacity_number)
 
         if (
-            pd.isna(capacity_number)
-            and not pd.isna(raw_capacity)
-            and str(raw_capacity).strip()
+            pd.isna(capacity_number) and not pd.isna(raw_capacity) and str(raw_capacity).strip()
         ):
             console_log(
                 f"[yellow]Warning:[/yellow] row {index} had [green]'capacity'[/green]:"
@@ -206,32 +199,33 @@ def update_rooms():
             )
 
         # if no csv value use enum defined value
-        size_value = raw_size or "NONE"
+        size_value = raw_size if pd.notna(raw_size) else "NONE"
 
         # if floor is missing -> None, otherwise ensure string if floors are numbered
         floor_value = None if pd.isna(raw_floor) else str(int(raw_floor))
 
-        fields = {
-            "tenantId": tenant_id,
-            "siteId": site_id_value,
-            "id": raw_id,
+        #build room fields dictionary for payload
+        room_fields = {
+            "tenantId": auth.TENANT_ID,
+            "id": room_id_value,
             "capacity": capacity_value,
             "size": size_value,
             "floor": floor_value,
+            "siteId": site_id_value,
         }
-
-        total_rooms_imported += 1
-
-        # build the payload structure
-        payload = {"query": graphql_mutation, "variables": {"fields": fields}}
+        #trim name whitespace and ensure no empty string
+        if pd.notna(raw_name) and str(raw_name).strip():
+            room_fields["name"] = str(raw_name).strip()
+        # build the update room payload structure
+        console_log(f"Sending row {index}: {room_fields}", style="dim")
+        payload = {"query": UPDATE_ROOMS, "variables": {"fields": room_fields}}
 
         try:
             # fire off the request and assign the response to a variable for error handling
-            response = requests.post(graphQL_url, json=payload, headers=headers)
+            response = requests.post(auth.GRAPHQL_URL, json=payload, headers=auth.get_headers())
             response.raise_for_status()
             data = response.json()
-            json_str = json.dumps(data, indent=2)
-            highlighted = highlight(json_str, JsonLexer(), TerminalFormatter())
+            highlighted = highlight(json.dumps(data, indent=2), JsonLexer(), TerminalFormatter())
             if "errors" in data:
                 # log GQL errors
                 gql_error = f"GraphQL error at row {index}: \n{highlighted}"
@@ -242,6 +236,7 @@ def update_rooms():
             else:
                 # log successful GQL response
                 logger.info(f"Row {index} updated: \n{highlighted}")
+                total_rooms_imported += 1
         # log network or HTTP errors
         except requests.RequestException as err:
             http_err = f"Request error at row {index}: {err}"
@@ -260,5 +255,6 @@ def update_rooms():
         console_log(
             f"⚠️ update_rooms() [red]failed with[/red] [yellow]{total_errors}[/yellow] [red]error(s).[/red]"
         )
+        logger.error("Details on all errors: \n" + "\n".join(all_errors))
     console.input("[dim]Press Enter to return to main menu[/dim]")
     return

@@ -1,33 +1,33 @@
 import sys
 import time
-from env_helper_util import print_indented
+from utils.env_helper import print_indented
+import utils.panel_renderer as panels
 from update_room_data import export_rooms, update_rooms
-from rich.table import Table
 from rich.text import Text
 from rich.panel import Panel
 from rich.console import Console
 from rich.live import Live
 from rich.align import Align
-from typing import List, Optional
-import itertools
+from utils.ascii import JARJAR_ASCII
 
 # Global Feature Flags
-DARK_MODE = False
 INITIAL_LOOP = True
 
 # CLI Menu
 console = Console()
 
-
 def bootup():
-    droid_ascii = f"""
-        ____                                              [--------------- TASK LIST ---------------]
-       / () \\                                             [ 0. Exit the script                      ]
-     _|______|_      [ UNIT: RT-L-T ]                     [ 1. Export your Lens Rooms data to CSV   ]
-    | | ==== | |     [ STATUS: ONLINE ]                   [ 2. Update your Lens Rooms data from CSV ]
-    | |   o  | |     [ LINK: /dev/roomsbus ]              [-----------------------------------------]
-"""
+    global INITIAL_LOOP
+    styles = panels.get_mode()
+    panel_border = "red" if panels.DARK_MODE else "bright_black"
     steps = [
+        "[red][SYS][/red] Activating core processors...",
+        "[red][I/O][/red] Scanning data ports...",
+        "[red][NET][/red] Establishing uplink to Poly Lens Cloud...",
+        "[red][AUTH][/red] Verifying API Creds...",
+        "[red][ROOM][/red] Initializing Room Metadata Cache...",
+        "[red][OK][/red] RT-L-T fully operational...",
+    ] if panels.DARK_MODE else [
         "[bold cyan][SYS][/bold cyan] Activating core processors...",
         "[bold cyan][I/O][/bold cyan] Scanning data ports...",
         "[bold cyan][NET][/bold cyan] Establishing uplink to Poly Lens Cloud...",
@@ -39,126 +39,71 @@ def bootup():
     with Live(
         console=console,
         refresh_per_second=4,
+        screen=True
     ) as live:
         for i, step in enumerate(steps, 1):
             panel = Panel(
-                Align.center(Text.from_markup(step, style="bold white")),
-                title=f"[cyan] ROOM TROOPER :: LENS ROOMS CONFIG TERMINAL INIT [{i}/{len(steps)}] [/cyan]",
-                border_style="bright_black",
+                Align.center(Text.from_markup(step, style=styles["primary"])),
+                title=f"[{styles['primary']}] ROOM TROOPER :: {'EMPIRE' if panels.DARK_MODE else 'LENS'} INIT [{i}/{len(steps)}] [/{styles['primary']}]",
+                border_style=panel_border,
                 padding=(1, 3),
-                expand=True,
+                # expand=True,
             )
             live.update(panel)
             time.sleep(0.4)
-    console.clear()
-    console.print(
-        Panel(
-            Align.center(Text(droid_ascii, style="cyan")),
-            border_style="bright_black",
-            title="[bold cyan] ROOM TROOPER :: LENS ROOMS CONFIG TERMINAL [/bold cyan]",
-            subtitle="[dim] Clone it. Update it. Move along.",
-            padding=(1, 3),
-        )
+
+    panels.render_panel(
+        panels.DARK_ASCII if panels.DARK_MODE else panels.LIGHT_ASCII,
+        title=f"[{styles['primary']}] ROOM TROOPER :: {'EMPIRE' if panels.DARK_MODE else 'LENS'} ROOMS CONFIG TERMINAL [/{styles['primary']}]",
+        subtitle=f"[{styles['secondary']}] Clone it. Update it. Move along.[/{styles['secondary']}]",
+        border_style="red" if panels.DARK_MODE else "bright_black"
     )
     time.sleep(0.7)
 
-
-def show_menu():
-    droid_ascii = f"""
-        ____                                              [--------------- TASK LIST ---------------]
-       / () \\                                             [ 0. Exit the script                      ]
-     _|______|_      [ UNIT: RT-L-T ]                     [ 1. Export your Lens Rooms data to CSV   ]
-    | | ==== | |     [ STATUS: ONLINE ]                   [ 2. Update your Lens Rooms data from CSV ]
-    | |   o  | |     [ LINK: /dev/roomsbus ]              [-----------------------------------------]
-"""
-    console.clear()
-    console.print(
-        Panel(
-            Align.center(Text(droid_ascii, style="cyan")),
-            border_style="bright_black",
-            title="[bold cyan] ROOM TROOPER :: LENS ROOMS CONFIG TERMINAL [/bold cyan]",
-            subtitle="[dim] Clone it. Update it. Move along.",
-            padding=(1, 3),
-        )
-    )
-
+def toggle_dark_mode():
+    panels.DARK_MODE = not panels.DARK_MODE
+    # INITIAL_LOOP = True
+    if panels.DARK_MODE and not panels.BANNER_SHOWN:
+        panels.show_banner()
+        panels.BANNER_SHOWN = True
+        panels.show_menu()
+        console.print("[red]The galaxy obeys your command…[/red]")
+    else:
+        panels.show_menu()
+        console.print("[cyan]The rebellion cowers before you no more…[/cyan]")
 
 def print_goodbye():
-    jarjar_ascii = Text()
-    jarjar_ascii.append("    o_o\n", style="bold yellow")
-    jarjar_ascii.append("   / ^ \\\n", style="bold orange3")
-    jarjar_ascii.append("  /(<->)\\\n", style="bold orange3")
-    jarjar_ascii.append(" // \\ / \\\\\n", style="bold orange3")
-    jarjar_ascii.append("//  ) (  \\\\\n", style="bold orange3")
-    jarjar_ascii.append("` _/   \\_ '\n", style="bold orange3")
-
-    goodbye_text = [
-        "",
-        "",
-        "Okie-day!",
-        "\nSee yousa later! 👋🏼",
-        "",
-        "",
-    ]
-    goodbye_block = "\n".join(goodbye_text)
-    table = Table.grid(padding=(0, 6))
-    table.add_row(jarjar_ascii, goodbye_block)
     console.clear()
     console.print(
         Panel(
-            Align.center(table, style="white"),
+            Align.center(Text.from_markup(JARJAR_ASCII)),
             border_style="bright_black",
-            padding=(1, 3),
             title="[bold cyan]ROOM TROOPER :: EXITING SEQUENCE COMPLETE [/bold cyan]",
-            expand=True,
+            padding=(1,3),
+            expand=True
         )
     )
 
 
 def droid_prompt(
-    question: str = "Select Task",
-    delay: float = 0.4,
-    cursor_duration: float = 1.0,
+    question: str = "Select Task"
 ) -> str:
-    global DARK_MODE
-    global INITIAL_LOOP
 
-    prompt_prefix = (
-        "[bold red][TROOPER][/bold red]"
-        if DARK_MODE
-        else "[bold cyan][DROID][/bold cyan]"
-    )
-
-    cursor_color = "red" if DARK_MODE else "white"
-    cursor_cycle = itertools.cycle(["▌", " "])
-
-    if INITIAL_LOOP:
-        with Live(refresh_per_second=4) as live:
-            start_time = time.time()
-            while time.time() - start_time < cursor_duration:
-                cursor = next(cursor_cycle)
-                live.update(
-                    Text.from_markup(
-                        f"[dim]{prompt_prefix} Initializing input...[/dim]",
-                        style=cursor_color,
-                    )
-                )
-                time.sleep(0.2)
-        time.sleep(delay)
-        INITIAL_LOOP = False
+    styles = panels.get_mode()
     console.print(" " * console.width, end="\r")
-
-    console.print(f"{prompt_prefix} {question}", end=" ", highlight=False)
-    answer = input()
-    return answer.strip()
+    console.print(f"[{styles['secondary']}]{styles['prompt_prefix']} {question}[/{styles['secondary']}]", end=" ", highlight=False)
+    answer = input().strip().upper()
+    return answer
 
 
 def main():
     bootup()
     while True:
-        show_menu()
+        panels.show_menu()
         choice = droid_prompt("Enter task selection [0,1,2] >").strip()
-
+        if choice == panels.SECRET_CODE:
+            toggle_dark_mode()
+            continue
         if choice == "1":
             console.print("[green] Exporting Rooms...[/green]")
             export_rooms()

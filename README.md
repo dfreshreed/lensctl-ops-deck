@@ -1,37 +1,61 @@
 # 🤖 Lens Room Trooper
 
-**Your droid companion for managing Lens Tenant room data**
+**Your droid CLI companion for exporting, importing, creating, and renaming Lens Tenant rooms** → *Clone it. Update it. Move along.*
 
-The `room_trooper.py` script helps you manage room metadata within your Lens Tenant. It lets you query and update fields like `capacity`, `size`, and `floor`, essential for Lens Insights and Analytics. If your Tenant has rooms without this data, this tool helps you efficiently update them.
-
-Installation and usage are fairly straightforward-**don't be intimidated by the length and detail in this README!** It's intentionally verbose to accomodate a wide range of experience levels.
+  <p align="center">
+    <img src="assets/droid.gif" alt="droid gif" style="max-width:200px; width:100%; height:auto;" />
+  </p>
 
 ---
 
 ## 🚀 Features
 
 - Authenticates using OAuth2 Client Credentials
-- Exports all rooms from your Lens tenant to the `room_data.csv` file
-- Reads room data from `room_data.csv` and udpates it in your Lens Tenant
-- Colorized, styled CLI output readability, logging, and error reporting
+- **Exports all rooms** from your Lens tenant to `room_data.csv`
+- **Reads room data** from `room_data.csv` and updates it in your Lens Tenant
+- **Create new rooms** when you leave the `id` column blank
+- **Rename rooms** by changing the `name` value
+- **Auto‑resolves sites** by `siteId` or `siteName` → on‑the‑fly creation of new Sites
+- **Rename Sites** Provide a new `siteName` for an existing `siteId` and we'll rename it (siteId doesn't change)
+- **Smart caching** of site lookups/renames → only one HTTP call per unique ID or name per run
+- **Per‑row error handling** → logs GraphQL or network failures and keeps going, then summarizes bad rows
+- Colorized, styled CLI output with Pygments, rich logging, and error reporting
 
 ---
 
 ## 🧰 CLI Options
 
-Running the script provides the following options:
+  <p align="center">
+    <img src="assets/cliPromptEntry.png" alt="CLI Entry Prompt Example" style="max-width:800px; width:100%; height:auto;" />
+  </p>
 
-![CLI Prompt Options](assets/roomTrooperMenu.png)
+Running the script provides three options:
 
- 0. `Exit the script`
- 1. `Export your Lens Room Data to CSV`
+ #### 0. `Exit the script`
+
+ #### 1. `Export Lens Rooms Data to CSV`
+
+  <p align="center">
+    <img src="assets/roomExportCLIExample.png" alt="Exporting Rooms to CSV" style="max-width:800px; width:100%; height:auto;" />
+  </p>
+
     - Runs a `query` that returns all rooms from your Lens tenant and writes them to `room_data.csv`
-    - `roomName` and `siteName` are returned alongside their `Ids` to make it easier for you to identify the room and update the `capacity`, `size`, and `floor` values
- 2. `Update your Lens Room Data from CSV`
-    - Reads the room data from `room_data.csv` and runs a `mutation` to update them in Lens.
-    - For each room imported, the `roomId`, `tenantId` and `siteId` are **required**.
+    - Returns both room `name` and `siteName` alongside their `Ids` so you can easily identify end edit the rows
 
-   > Options 1 and 2 utilize the `room_data.csv` file in the project root directory.
+ #### 2. `Update Lens Rooms Data from CSV`
+
+   <p align="center">
+    <img src="assets/updateRoomExampleOutput.png" alt="CLI Entry Prompt Example" style="max-width:800px; width:100%; height:auto;" />
+  </p>
+
+    - Reads the room data from `room_data.csv` and runs a `mutation` to update:
+      - Update existing rooms' metadata (`capacity`, `size`, `floor`)
+      - Renames rooms when you change the `name` field
+      - Creates **new** rooms for rows where `id` is blank (uses `name` you provide)
+    - Auto-resolves Sites: looks up by `siteName` or `siteId`, creates if missing, renames existing
+      - If a row's `siteId` and `siteName` are blank, it will update/create the room without a site association
+
+   > Options 1 and 2 both read from `room_data.csv` in the project root
 
 ---
 
@@ -40,12 +64,17 @@ Running the script provides the following options:
 ```
 lens-api-python/
 ├── room_trooper.py                # Main file containing CLI script you'll use
+├── update_room_data.py            # Core GraphQL query and mutation logic
 ├── requirements.txt               # Python dependencies
-├── room_data.csv                  # CSV used for import and export
+├── room_data.csv                  # CSV used for import/export
 ├── .env.example                   # Example environment variable file
-├── .gitignore                     # Files and folders git ignores
-├── update_room_data.py            # Query and mutation logic
-├── env_helper_util.py             # Helper functions
+├── .gitignore                     # Files and folders Git ignores
+├── utils/
+│   ├── ascii.py                   # CLI ASCII art
+│   ├── auth.py                    # OAuth token retrieval and caching
+│   ├── env_helper.py              # Environment loading, config, and logging
+│   ├── obi_site_kenobi.py         # Site helper logic (lookup, create, rename)
+│   └── panel_renderer.py          # CLI rendering components
 └── README.md                      # Project docs
 ```
 
@@ -153,7 +182,7 @@ SITE_ID=your-site-id # use this if you want to update rooms by site. otherwise, 
 If you want to use the script to update your rooms using your own `.csv`, ensure the following:
 - rename **your** `.csv` to `room_data.csv` (the script expects this filename)
 - verify it contains the required headers
-  - `id,capacity,size,floor,siteId`
+  - `name,id,capacity,size,floor,siteName,siteId`
 - remove the project's `room_data.csv` and replace it with yours.
 
 
@@ -162,11 +191,13 @@ Expected types and data format:
 
 | Column     | Type    | Description                                                |
 | ---------- | ------- | ---------------------------------------------------------- |
-| `id`       | String  | The unique Lens-generated room ID                          |
+| `name`     | String  | The name of the room. Used for new-room creation or renaming an existing room. Room names must be unique                          |
+| `id`       | String  | (Optional) Lens-generated room `ID`. Leave blank to create a new room                          |
 | `capacity` | Integer | Maximum number of people the room can accommodate          |
-| `size`     | Enum    | One of: NONE, FOCUS, HUDDLE, SMALL, MEDIUM, LARGE          |
+| `size`     | Enum    | One of: `NONE`, `FOCUS`, `HUDDLE`, `SMALL`, `MEDIUM`, `LARGE`        |
 | `floor`    | String  | Name of the floor the room is on (e.g. "1", "2nd", "Main") |
-| `siteId`    | String  | The Site ID associated with the Room (optional if in .env) |
+| `siteName`    | String  | (Optional) Name of the site. Used to lookup/create/rename sites when `siteId` is blank or unchanged. <br/> If empty **and** `siteId` is empty → **new rooms** are created without site association and **existing rooms** are un-associated from their existing site <br/> |
+| `siteId`    | String  | (Optional) Existing site ID. If provided with a different `siteName`, the site will be renamed. <br/> If empty **and** `siteName` is empty → **new rooms** are created without site association and **existing rooms** are un-associated from their existing site <br/> |
 
 
 > By default, the script returns all rooms in your Lens Tenant. If you prefer to batch the process by Site, you can add the `siteId` to the `.env` and exclude it from the `.csv` header.
@@ -176,8 +207,6 @@ Expected types and data format:
 ## 🧠 Usage
 
 Before running the script, remember to activate the virtual environment:
-
-
 
 ```bash
 source venv/bin/activate  # Mac/Linux
@@ -199,6 +228,7 @@ python room_trooper.py # Windows
 ```
 
 ---
+
 ## 🖥️ Windows-Specific Notes
 
 - Use `python` instead of `python3`
@@ -213,36 +243,3 @@ python room_trooper.py # Windows
     git config core.autocrlf true
     ```
   > 💡 Works in `cmd`, `PowerShell`, or `Git Bash`
----
-
-## 🧪 Example Output
-
-The CLI will output styled responses, showing GraphQL success/error details:
-
-Export:
-
-```css
-[DROID] RT-L-T fully operational.
-[DROID] Exported 4 rooms to room_data.csv.
-```
-
-Import:
-
-```css
-2025-05-24 23:52:56 | [INFO] | Row 0 updated:
-{
-  "data": {
-    "upsertRoom": {
-      "name": "Daniel Reed Desk",
-      "id": "03b9975c-5b2a-4007-9ef1-034ec756d3b4",
-      "capacity": 1,
-      "size": "SMALL",
-      "updatedAt": "2025-05-25T03:52:56.794Z",
-      "floor": "1"
-    }
-  }
-}
-
-2025-05-24 23:52:56 | [INFO] | 🏁 update_rooms() completed successfully with no errors.
-
-```
