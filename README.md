@@ -3,7 +3,7 @@
 **Your droid CLI companion for exporting, importing, creating, and renaming Lens Tenant rooms** → *Clone it. Update it. Move along.*
 
   <p align="center">
-    <img src="assets/droid.gif" alt="droid gif" style="max-width:200px; width:100%; height:auto;" />
+    <img src="assets/droid.gif" alt="droid gif" width="200" />
   </p>
 
 ---
