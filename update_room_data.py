@@ -64,7 +64,7 @@ def export_rooms():
     while True:
         payload = {
             "query": EXPORT_ROOMS,
-            "variables": {"params": {"cursor": cursor, "paging": "NEXT_PAGE"}},
+            "variables": {"params": {"cursor": cursor, "paging": "NEXT_PAGE", "limit": 50, "sort":[{"field": "ROOM_NAME", "direction": "ASC"}]}},
         }
         try:
             response = requests.post(auth.GRAPHQL_URL, json=payload, headers=auth.get_headers())
