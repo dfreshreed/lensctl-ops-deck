@@ -6,7 +6,7 @@ from pygments.formatters import TerminalFormatter
 from pygments.lexers import JsonLexer
 from utils.env_helper import logger, console_log, pretty_node_deets, console
 import utils.auth as auth
-from utils.obi_site_kenobi import resolve_site
+from utils.obi_site_kenobi import resolve_site, SiteIdNotFoundError
 
 # lens api query to lookup room data
 EXPORT_ROOMS = """
@@ -57,6 +57,8 @@ def export_rooms():
     logger.info("Starting room export to csv")
     all_rooms = []
     total_rooms_exported = 0
+    all_errors = []
+    total_errors = 0
     cursor = None
 
     while True:
@@ -69,10 +71,14 @@ def export_rooms():
             response.raise_for_status()
         except requests.RequestException as err:
             logger.error(f"Export request failed: {err}")
+            all_errors.append(err)
+            total_errors +=1
             break
         data = response.json()
         if data.get("errors"):
             logger.error(f"GraphQL error:\n{json.dumps(data['errors'], indent=2)}")
+            all_errors.append(data['errors'])
+            total_errors +=1
             break
 
         tenants = data.get("data", {}).get("tenants", [])
@@ -115,11 +121,15 @@ def export_rooms():
         console_log(
             "[blue]All Room Data exported to[/blue] [magenta]room_data.csv[/magenta]"
         )
+        console_log(
+            "🏁 [magenta]export_rooms()[/magenta] [blue]completed successfully with no errors[/blue]")
     else:
-        logger.warning("No room data found RUH ROH!")
-    console_log(
-        "🏁 [magenta]export_rooms()[/magenta] [blue]completed successfully with no errors[/blue]"
-    )
+        console_log(
+            f"[magenta]export_rooms()[/magenta] [red]failed with[/red] [yellow]{total_errors}[/yellow] [red]error(s)[/red]"
+        )
+        # console_log(all_errors)
+        console_log("[red]Details on all errors:[/red] \n" + "\n".join(all_errors))
+
     console_log(
         f"[blue]Total Rooms Exported:[/blue] [yellow]{total_rooms_exported}[/yellow]"
     )
@@ -133,19 +143,21 @@ def update_rooms():
     total_rooms_imported = 0
     total_errors = 0
     all_errors = []
+    site_name_to_id = {}
+    site_id_to_name = {}
 
     # read the csv
     try:
         dataframe = pd.read_csv("./room_data.csv")
-        site_name_to_id = {}
-        site_id_to_name = {}
     # handle any errors
     except Exception as ex:
         logger.error(f"Failed to read csv: {ex}")
         console.input("[dim]Press Enter to return to main menu[/dim]")
         return
-
-    errors_occurred = False
+    if dataframe.empty:
+        console_log("[yellow]'room_data.csv' is empty → There's nothing to import [/yellow]")
+        console.input("[dim]Press Enter to return to main menu[/dim]")
+        return
 
     # loop through each csv row
     for index, row in dataframe.iterrows():
@@ -165,16 +177,22 @@ def update_rooms():
 
         try:
             site_id_value = resolve_site(raw_site, raw_site_name, site_name_to_id, site_id_to_name)
+        except SiteIdNotFoundError as error:
+            logger.error(f"Caught SiteIdNotFoundError in row {index}: {error}")
+            all_errors.append(f"Row {index}: {error}")
+            total_errors += 1
+            continue
         except requests.RequestException as http_error:
             logger.error(f"Row {index}: HTTP error during site resolution: {http_error}")
             if http_error.response is not None:
-                logger.debug(f"Reponse body:\n{http_error.response.text}")
-            all_errors.append(f"row {index}: {http_error}")
+                logger.debug(f"Response body:\n{http_error.response.text}")
+            all_errors.append(f"Row {index}: {http_error}")
             total_errors +=1
             continue
         except Exception as err:
             logger.error(f"Row {index}: site resolution failed: {err}")
-            all_errors.append(f"row {index}: {err}")
+            all_errors.append(f"Row {index}: {err}")
+
             total_errors += 1
             continue
 
@@ -197,12 +215,15 @@ def update_rooms():
                 "Fix value in [green]room_data.csv[/green] and run the import again.",
                 style="bold",
             )
-
+        # validate enum sizes as safety net for bad input
+        DEFAULT_SIZE = "NONE"
+        VALID_SIZES = {"NONE", "FOCUS", "HUDDLE", "SMALL", "MEDIUM", "LARGE"}
         # if no csv value use enum defined value
-        size_value = raw_size if pd.notna(raw_size) else "NONE"
+        raw_size = raw_size.upper() if pd.notna(raw_size) else DEFAULT_SIZE
+        size_value = raw_size if raw_size in VALID_SIZES else DEFAULT_SIZE
 
         # if floor is missing -> None, otherwise ensure string if floors are numbered
-        floor_value = None if pd.isna(raw_floor) else str(int(raw_floor))
+        floor_value = None if pd.isna(raw_floor) else str(raw_floor).strip()
 
         #build room fields dictionary for payload
         room_fields = {
@@ -231,7 +252,6 @@ def update_rooms():
                 gql_error = f"GraphQL error at row {index}: \n{highlighted}"
                 logger.error(gql_error)
                 all_errors.append(gql_error)
-                errors_occurred = True
                 total_errors += 1
             else:
                 # log successful GQL response
@@ -242,19 +262,19 @@ def update_rooms():
             http_err = f"Request error at row {index}: {err}"
             logger.error(http_err)
             all_errors.append(http_err)
-            errors_occurred = True
             total_errors += 1
-    if not errors_occurred:
+    if not total_errors:
         console_log(
-            "🏁 [magenta]update_rooms()[/magenta] [blue]completed successfully with no errors.[/blue]"
+            "[magenta]update_rooms()[/magenta] [blue]completed successfully with no errors.[/blue]"
         )
         console_log(
             f"[blue]Total Rooms Imported:[/blue] [yellow] {total_rooms_imported} [/yellow]"
         )
     else:
         console_log(
-            f"⚠️ update_rooms() [red]failed with[/red] [yellow]{total_errors}[/yellow] [red]error(s).[/red]"
+            f"'update_rooms()' [red]failed with[/red] [yellow]{total_errors}[/yellow] [red]error(s).[/red]"
         )
-        logger.error("Details on all errors: \n" + "\n".join(all_errors))
+        # console_log(all_errors)
+        console_log("[red]Details on all errors:[/red] \n" + "\n".join(all_errors))
     console.input("[dim]Press Enter to return to main menu[/dim]")
     return
