@@ -29,6 +29,10 @@
 
 #### 0. `Exit the script`
 
+  <p align="center">
+    <img src="assets/lensctl-exit.png" alt="Exporting Rooms to CSV"  />
+  </p>
+
 #### 1. `Export Lens Rooms Data to CSV`
 
   <p align="center">
