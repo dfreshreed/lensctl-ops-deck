@@ -2,7 +2,7 @@ import requests
 import os
 from rich.traceback import install
 from utils.env_helper import get_required_env, logger
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Optional, Dict, Any
 
 install()  # colorize uncaught exceptions and tracebacks
 # -------------------------
