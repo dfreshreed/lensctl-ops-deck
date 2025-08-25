@@ -22,7 +22,7 @@
 ## 🧰 CLI Options
 
   <p align="center">
-    <img src="assets/lensctl-opsdeck.png" alt="CLI Entry Prompt Example" style="max-width:1000px; width:100%; height:auto;" />
+    <img src="assets/lensctl-opsdeck.png" alt="CLI Entry Prompt Example" />
   </p>
 
 The CLI tool provides three tasks:
@@ -32,7 +32,7 @@ The CLI tool provides three tasks:
 #### 1. `Export Lens Rooms Data to CSV`
 
   <p align="center">
-    <img src="assets/lensctl-room-export.png" alt="Exporting Rooms to CSV" style="max-width:1000px; width:100%; height:auto;" />
+    <img src="assets/lensctl-room-export.png" alt="Exporting Rooms to CSV"  />
   </p>
 
     - Runs a `query` that returns all rooms from your Lens tenant and writes them to `room_data.csv`
@@ -41,7 +41,7 @@ The CLI tool provides three tasks:
 #### 2. `Update Lens Rooms Data from CSV`
 
    <p align="center">
-    <img src="assets/lensctl-room-import.png" alt="CLI Entry Prompt Example" style="max-width:1000px; width:100%; height:auto;" />
+    <img src="assets/lensctl-room-import.png" alt="CLI Entry Prompt Example"  />
   </p>
 
     - Reads the room data from `room_data.csv`
@@ -109,8 +109,8 @@ This project uses Git for version control. If you don't already have Git install
 After installing Git, confirm it's installed by running: `git --version`
 
 ```bash
-git clone https://github.com/dfreshreed/lens-room-trooper.git
-cd lens-api-python
+git clone https://github.com/dfreshreed/lensctl-ops-deck.git
+cd lensctl-ops-deck
 ```
 
 ### 2️⃣ Setup Virtual Environment
