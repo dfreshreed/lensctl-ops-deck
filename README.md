@@ -25,7 +25,7 @@
     <img src="assets/lensctl-opsdeck.png" alt="CLI Entry Prompt Example" />
   </p>
 
-The CLI tool provides three tasks:
+### The CLI tool provides three tasks:
 
 #### 0. `Exit the script`
 
@@ -35,8 +35,8 @@ The CLI tool provides three tasks:
     <img src="assets/lensctl-room-export.png" alt="Exporting Rooms to CSV"  />
   </p>
 
-    - Runs a `query` that returns all rooms from your Lens tenant and writes them to `room_data.csv`
-    - Returns both room `name` and `siteName` alongside their `Ids` so you can easily identify end edit the rows
+- Runs a `query` that returns all rooms from your Lens tenant and writes them to `room_data.csv`
+- Returns both room `name` and `siteName` alongside their `Ids` so you can easily identify end edit the rows
 
 #### 2. `Update Lens Rooms Data from CSV`
 
@@ -44,13 +44,13 @@ The CLI tool provides three tasks:
     <img src="assets/lensctl-room-import.png" alt="CLI Entry Prompt Example"  />
   </p>
 
-    - Reads the room data from `room_data.csv`
-    - Auto-resolves Sites: looks up by `siteName` or `siteId`, creates if missing, renames existing
-      - If a row's `siteId` and `siteName` are blank, it will update/create the room without a site association
-    - Runs a `mutation` to update the record in your Lens tenant:
-      - Update existing rooms' metadata (`capacity`, `size`, `floor`)
-      - Renames rooms when you change the `name` field
-      - Creates **new** rooms for rows where `id` is blank (uses `name` you provide)
+- Reads the room data from `room_data.csv`
+- Auto-resolves Sites: looks up by `siteName` or `siteId`, creates if missing, renames existing
+  - If a row's `siteId` and `siteName` are blank, it will update/create the room without a site association
+- Runs a `mutation` to update the record in your Lens tenant:
+  - Update existing rooms' metadata (`capacity`, `size`, `floor`)
+  - Renames rooms when you change the `name` field
+  - Creates **new** rooms for rows where `id` is blank (uses `name` you provide)
 
 > Options 1 and 2 both use `room_data.csv` in the project root
 
