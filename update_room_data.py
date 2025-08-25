@@ -4,7 +4,8 @@ import pandas as pd
 from pygments import highlight
 from pygments.formatters import TerminalFormatter
 from pygments.lexers import JsonLexer
-from utils.env_helper import logger, console_log, pretty_node_deets, console
+from rich.text import Text
+from utils.env_helper import logger, console_log, pretty_node_deets, console, bool_text
 import utils.auth as auth
 from utils.obi_site_kenobi import resolve_site, SiteIdNotFoundError
 
@@ -53,6 +54,7 @@ mutation updateRoomData($fields: UpsertRoomRequest!) {
 }
 """
 
+
 def export_rooms():
     logger.info("Starting room export to csv")
     all_rooms = []
@@ -64,21 +66,30 @@ def export_rooms():
     while True:
         payload = {
             "query": EXPORT_ROOMS,
-            "variables": {"params": {"cursor": cursor, "paging": "NEXT_PAGE", "limit": 50, "sort":[{"field": "ROOM_NAME", "direction": "ASC"}]}},
+            "variables": {
+                "params": {
+                    "cursor": cursor,
+                    "paging": "NEXT_PAGE",
+                    "limit": 50,
+                    "sort": [{"field": "ROOM_NAME", "direction": "ASC"}],
+                }
+            },
         }
         try:
-            response = requests.post(auth.GRAPHQL_URL, json=payload, headers=auth.get_headers())
+            response = requests.post(
+                auth.GRAPHQL_URL, json=payload, headers=auth.get_headers()
+            )
             response.raise_for_status()
         except requests.RequestException as err:
             logger.error(f"Export request failed: {err}")
             all_errors.append(err)
-            total_errors +=1
+            total_errors += 1
             break
         data = response.json()
         if data.get("errors"):
             logger.error(f"GraphQL error:\n{json.dumps(data['errors'], indent=2)}")
-            all_errors.append(data['errors'])
-            total_errors +=1
+            all_errors.append(data["errors"])
+            total_errors += 1
             break
 
         tenants = data.get("data", {}).get("tenants", [])
@@ -104,8 +115,11 @@ def export_rooms():
 
         has_next = page_info.get("hasNextPage", False)
         cursor = page_info.get("endCursor")
-
-        console_log(f"Pagination: hasNextPage={has_next}, endCursor={cursor}")
+        message = Text.assemble(("Pagination: ", "white"), ("hasNextPage=", "yellow"))
+        message.append_text(bool_text(has_next))
+        message.append(" endCursor=", "yellow")
+        message.append(str(cursor), "magenta")
+        console_log(message)
 
         if has_next and cursor:
             continue
@@ -122,17 +136,22 @@ def export_rooms():
             "[blue]All Room Data exported to[/blue] [magenta]room_data.csv[/magenta]"
         )
         console_log(
-            "🏁 [magenta]export_rooms()[/magenta] [blue]completed successfully with no errors[/blue]")
-    else:
-        console_log(
-            f"[magenta]export_rooms()[/magenta] [red]failed with[/red] [yellow]{total_errors}[/yellow] [red]error(s)[/red]"
+            "🏁 [magenta]export_rooms()[/magenta] [blue]completed with no errors[/blue]"
         )
+    else:
+        message = Text.assemble(
+            ("export_rooms()", "magenta"),
+            ("failed with", "red"),
+            (str(total_errors), "yellow"),
+            ("errors", "red"),
+        )
+        console_log(message)
         # console_log(all_errors)
         console_log("[red]Details on all errors:[/red] \n" + "\n".join(all_errors))
-
-    console_log(
-        f"[blue]Total Rooms Exported:[/blue] [yellow]{total_rooms_exported}[/yellow]"
+    message = Text.assemble(
+        ("Total Rooms Exported: ", "blue"), (str(total_rooms_exported), "yellow")
     )
+    console_log(message)
     console.input("[dim]Press Enter to return to main menu[/dim]")
     return
 
@@ -155,14 +174,18 @@ def update_rooms():
         console.input("[dim]Press Enter to return to main menu[/dim]")
         return
     if dataframe.empty:
-        console_log("[yellow]'room_data.csv' is empty → There's nothing to import [/yellow]")
+        console_log(
+            "[yellow]'room_data.csv' is empty → There's nothing to import [/yellow]"
+        )
         console.input("[dim]Press Enter to return to main menu[/dim]")
         return
 
     # loop through each csv row
     for index, row in dataframe.iterrows():
+        row_dict = row.to_dict()
+        # row_dict = {key: (None if pd.isna(value) else value) for key, value in row_dict}
         # log row for debugging
-        console_log(f"Row read from CSV {index}: {row.to_dict()}", style="dim")
+        pretty_node_deets(row_dict, label=f"CSV row {index}", pad_braces=True)
 
         # Pull each value once for finalizing types
         raw_id = row.get("id")
@@ -173,21 +196,32 @@ def update_rooms():
         raw_site = row.get("siteId")
         raw_site_name = row.get("siteName")
 
-        console_log(f"🔍 Resolving site for '{raw_site_name}':'{raw_site}'…", style="dim")
+        message = Text.assemble(
+            ("🔍 Resolving site for ", "white"),
+            (repr(raw_site_name), "yellow"),
+            (":", "grey58"),
+            (repr(raw_site), "blue"),
+            ("...", "white"),
+        )
+        console_log(message)
 
         try:
-            site_id_value = resolve_site(raw_site, raw_site_name, site_name_to_id, site_id_to_name)
+            site_id_value = resolve_site(
+                raw_site, raw_site_name, site_name_to_id, site_id_to_name
+            )
         except SiteIdNotFoundError as error:
             logger.error(f"Caught SiteIdNotFoundError in row {index}: {error}")
             all_errors.append(f"Row {index}: {error}")
             total_errors += 1
             continue
         except requests.RequestException as http_error:
-            logger.error(f"Row {index}: HTTP error during site resolution: {http_error}")
+            logger.error(
+                f"Row {index}: HTTP error during site resolution: {http_error}"
+            )
             if http_error.response is not None:
                 logger.debug(f"Response body:\n{http_error.response.text}")
             all_errors.append(f"Row {index}: {http_error}")
-            total_errors +=1
+            total_errors += 1
             continue
         except Exception as err:
             logger.error(f"Row {index}: site resolution failed: {err}")
@@ -204,7 +238,9 @@ def update_rooms():
         capacity_value = None if pd.isna(capacity_number) else int(capacity_number)
 
         if (
-            pd.isna(capacity_number) and not pd.isna(raw_capacity) and str(raw_capacity).strip()
+            pd.isna(capacity_number)
+            and not pd.isna(raw_capacity)
+            and str(raw_capacity).strip()
         ):
             console_log(
                 f"[yellow]Warning:[/yellow] row {index} had [green]'capacity'[/green]:"
@@ -225,7 +261,7 @@ def update_rooms():
         # if floor is missing -> None, otherwise ensure string if floors are numbered
         floor_value = None if pd.isna(raw_floor) else str(raw_floor).strip()
 
-        #build room fields dictionary for payload
+        # build room fields dictionary for payload
         room_fields = {
             "tenantId": auth.TENANT_ID,
             "id": room_id_value,
@@ -234,30 +270,37 @@ def update_rooms():
             "floor": floor_value,
             "siteId": site_id_value,
         }
-        #trim name whitespace and ensure no empty string
+        # ---trim name whitespace and ensure no empty string---
         if pd.notna(raw_name) and str(raw_name).strip():
             room_fields["name"] = str(raw_name).strip()
-        # build the update room payload structure
-        console_log(f"Sending row {index}: {room_fields}", style="dim")
+        # ---build the update room payload structure---
+
+        pretty_node_deets(
+            room_fields, label=f"Sending row {index} to Lens API", pad_braces=True
+        )
         payload = {"query": UPDATE_ROOMS, "variables": {"fields": room_fields}}
 
         try:
-            # fire off the request and assign the response to a variable for error handling
-            response = requests.post(auth.GRAPHQL_URL, json=payload, headers=auth.get_headers())
+            # ---fire off the request and assign the response to a variable for error handling---
+            response = requests.post(
+                auth.GRAPHQL_URL, json=payload, headers=auth.get_headers()
+            )
             response.raise_for_status()
             data = response.json()
-            highlighted = highlight(json.dumps(data, indent=2), JsonLexer(), TerminalFormatter())
+            highlighted = highlight(
+                json.dumps(data, indent=2), JsonLexer(), TerminalFormatter()
+            )
             if "errors" in data:
-                # log GQL errors
+                # ---log GQL errors---
                 gql_error = f"GraphQL error at row {index}: \n{highlighted}"
                 logger.error(gql_error)
                 all_errors.append(gql_error)
                 total_errors += 1
             else:
-                # log successful GQL response
-                logger.info(f"Row {index} updated: \n{highlighted}")
+                # ---log successful GQL response---
+                logger.info(f"Row {index} updated. API response: \n{highlighted}")
                 total_rooms_imported += 1
-        # log network or HTTP errors
+        # ---log network or HTTP errors---
         except requests.RequestException as err:
             http_err = f"Request error at row {index}: {err}"
             logger.error(http_err)
@@ -265,16 +308,21 @@ def update_rooms():
             total_errors += 1
     if not total_errors:
         console_log(
-            "[magenta]update_rooms()[/magenta] [blue]completed successfully with no errors.[/blue]"
+            "[magenta]update_rooms()[/magenta] [blue]completed with no errors.[/blue]"
         )
-        console_log(
-            f"[blue]Total Rooms Imported:[/blue] [yellow] {total_rooms_imported} [/yellow]"
+        message = Text.assemble(
+            ("Total Rooms Imported: ", "blue"), (str(total_rooms_imported), "yellow")
         )
+        console_log(message)
     else:
-        console_log(
-            f"'update_rooms()' [red]failed with[/red] [yellow]{total_errors}[/yellow] [red]error(s).[/red]"
+        message = Text.assemble(
+            ("update_rooms()", "magenta"),
+            ("failed with", "red"),
+            (str(total_errors), "yellow"),
+            ("error(s)", "red"),
         )
-        # console_log(all_errors)
+        console_log(message)
+
         console_log("[red]Details on all errors:[/red] \n" + "\n".join(all_errors))
     console.input("[dim]Press Enter to return to main menu[/dim]")
     return
