@@ -63,7 +63,7 @@
 ## 📁 Project Structure
 
 ```
-lens-api-python/
+lensctl-ops-deck/
 ├── cli.py                         # Main file containing CLI script you'll use
 ├── requirements.txt               # Python dependencies
 ├── room_data.csv                  # CSV used for import/export
@@ -218,7 +218,7 @@ venv\Scripts\Activate.ps1 # Windows PowerShell
 If your virtual environment (venv) is activated, you'll see a `(venv)` prefix in your terminal, like this:
 
 ```bash
-(venv) ➜  lens-api-python $
+(venv) ➜  lensctl-ops-deck $
 ```
 
 Then you can run the script:
