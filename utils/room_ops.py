@@ -99,7 +99,7 @@ def export_rooms():
 
         for edge in edges:
             node = edge["node"]
-            pretty_node_deets(node)
+            pretty_node_deets(node, pad_braces=True)
             total_rooms_exported += 1
             all_rooms.append(
                 {

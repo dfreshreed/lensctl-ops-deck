@@ -11,7 +11,9 @@
 - **Reads room data** from `room_data.csv` and updates it in your Lens Tenant
 - **Create new rooms** when you leave the `id` column blank
 - **Rename rooms** by changing the `name` value
-- **Auto‑resolves sites** by `siteId` or `siteName` → on‑the‑fly creation of new Sites
+- **Bulk create rooms** from the CLI (no CSV) with sequential names (e.g., Redwood 101)
+- **Auto-resolve site by name** during bulk create (create the Site on-the-fly) if it doesn't exist.
+- **Auto‑resolves sites** by `siteId` or `siteName` during CSV import → on‑the‑fly creation of new Sites
 - **Rename Sites** Provide a new `siteName` for an existing `siteId` and we'll rename it (siteId doesn't change)
 - **Smart caching** of site lookups/renames → only one HTTP call per unique ID or name per run
 - **Per‑row error handling** → logs GraphQL or network failures and keeps going, then summarizes bad rows
@@ -56,6 +58,24 @@
   - Renames rooms when you change the `name` field
   - Creates **new** rooms for rows where `id` is blank (uses `name` you provide)
 
+#### 3. `Create Rooms (bulk)`
+
+   <p align="center">
+    <img src="assets/lensctl-bulk-create.png" alt="CLI Entry Prompt Example"  />
+  </p>
+
+Quickly scaffold room (and site) names. Create rooms in bulk, then use the CSV import to tweak metadata.
+
+- Interactive prompts:
+  - **How many rooms** → The count of rooms to create. Defaults to 10, minimum of 1
+  - **Starting number** → The first number in the sequence (e.g., `101`)
+  - **Base Name** → The text prefix for the room (e.g., `Redwood`)
+  - **Site name (optional)** → Associates rooms to the site. Uses the `siteName` to lookup the `siteId`. If no `siteId` is found, creates the site.
+
+**Naming rule:** the tool automatically inserts a space between the base name and number (e.g., `Redwood 101`, `Redwood 201`, etc.)
+
+**Defaults used for new rooms:** `capacity=None`, `size=None`, `floor=""`. Use CSV import to update these fields
+
 > Options 1 and 2 both use `room_data.csv` in the project root
 
 ---
@@ -72,6 +92,7 @@ lensctl-ops-deck/
 ├── utils/
 │   ├── ascii.py                   # CLI ASCII art
 │   ├── auth.py                    # OAuth token retrieval and caching
+│   ├── bulk_create.py             # Bulk room creation logic
 │   ├── env_helper.py              # Environment loading, config, and logging
 │   ├── panel_renderer.py          # CLI rendering components
 │   ├── room_ops.py                # Core GraphQL query and mutation logic

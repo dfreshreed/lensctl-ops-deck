@@ -1,7 +1,8 @@
 import time
+from typing import Literal
 from rich import box
 from rich.align import Align
-from rich.console import Console, Group
+from rich.console import Console, Group, RenderableType
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
@@ -66,33 +67,47 @@ def get_mode():
 
 def _status_badges(status_text="ONLINE", api_text="", identity: dict | None = None):
     api_text = get_required_env("LENS_EP")
+    console_value = Text.assemble((" ●", "ok"), (" ", ""), (status_text, "accent"))
     t = Table.grid(padding=(0, 1))
     t.add_column(no_wrap=True)  # icons
     t.add_column()  # text
     t.add_row(
-        Text("●", style="ok"),
-        _key_value_line("Ops Deck Console", f" {status_text}"),
+        _key_value_line(
+            "Console",
+            console_value,
+        ),
     )
     t.add_row(
-        Text("🔗", style="muted"),
-        _key_value_line("Lens GraphQL EP", f" {api_text}"),
+        _key_value_line(
+            "Lens API EP",
+            f" {api_text}",
+        ),
     )
     if identity:
         name = identity.get("name", "")
         role = identity.get("role") or "No role"
         t.add_row(
-            Text("🎫", style="muted"),
-            _key_value_line("API Creds Name", f" {name}"),
+            _key_value_line(
+                "API Creds Name",
+                f" {name}",
+            ),
         )
         t.add_row(
-            Text("🔐", style="accent"),
-            _key_value_line("API Creds Role" + "", f" {role}"),
+            _key_value_line(
+                "API Creds Role" + "",
+                f" {role}",
+            ),
         )
     return t
 
 
 def _tasks(selected: int | None = None):
-    rows = ["Exit", "Export Lens Rooms → CSV", f"Update Lens Rooms ← CSV"]
+    rows = [
+        "Exit",
+        "Export Lens Rooms → CSV",
+        "Update Lens Rooms ← CSV",
+        "Create Rooms (bulk)",
+    ]
     tb = Table.grid(padding=(0, 1))
     tb.add_column(justify="right", style="muted", no_wrap=True)
     tb.add_column()
@@ -124,27 +139,38 @@ def _header(ascii_art: str):
 
 def _key_value_line(
     label: str,
-    value: str,
+    value: RenderableType,
     *,
-    label_width: int = 16,
+    label_width: int = 18,
     label_style: str = "muted",
     value_style: str = "accent",
 ):
-    grid = Table.grid(padding=(0, 1))
+    grid = Table.grid(padding=(0), collapse_padding=True)
     grid.add_column(
         no_wrap=True,
-        justify="right",
+        justify="left",
         min_width=label_width,
         max_width=label_width,
         style=label_style,
     )
     grid.add_column(style=value_style)
-    grid.add_row(f"{label}:", Text(value, overflow="fold", style=value_style))
+    value = (
+        Text(value, style=value_style, overflow="fold")
+        if isinstance(value, str)
+        else value
+    )
+    grid.add_row(f"{label}:", value)
 
     return grid
 
 
 # -----------PUBLIC RENDERERS-----------
+
+
+def toggle_theme() -> None:
+    global DARK_MODE
+    DARK_MODE = not DARK_MODE
+    show_banner("dark" if DARK_MODE else "light")
 
 
 def render_screen(
@@ -153,6 +179,7 @@ def render_screen(
     status_text="ONLINE",
     api_text="LENS API GRAPHQL ENDPOINT",
     identity: dict | None = None,
+    flash: RenderableType | None = None,
 ):
     outer_title = (
         "LENSCTL :: " + ("EMPIRE" if DARK_MODE else "OPS DECK") + " CONFIG TERMINAL"
@@ -178,8 +205,13 @@ def render_screen(
     body.add_column(ratio=1)  # TASKS
     body.add_row(status, vrule, tasks)
 
+    pieces = [header, body]
+    if flash:
+        pieces.append(
+            Align.center(Text.from_markup(flash) if isinstance(flash, str) else flash)
+        )
     return Panel(
-        Group(header, body),
+        Group(*pieces),
         title=f"[title]{outer_title}[/title]",
         subtitle=f"[muted]{outer_subtitle}[/muted]",
         title_align="center",
@@ -190,45 +222,28 @@ def render_screen(
     )
 
 
-# -----------BACKWARD COMPAT HELPERS-----------
-
-
-def render_panel(
-    body: str, title: str, subtitle: str = "", border_style: str = "border"
-):
+def show_banner(kind: Literal["dark", "light"] = "dark", duration: float = 1.1) -> None:
     console = _console()
+
+    if kind == "dark":
+        title = "[title] EMPEROR'S COMMAND [/title]"
+        body = Text.assemble(
+            "\nYou have summoned the ", ("Dark Side", "accent"), "\n\n"
+        )
+    else:
+        title = "[title] REBEL TRANSMISSION [/title]"
+        body = Text.assemble(
+            "\n", ("The Rebellion cowers before you no more!", "accent"), "\n\n"
+        )
+
     panel = Panel(
-        Align.center(Text(body, style="accent")),
-        title=title,
-        subtitle=subtitle or "[muted]Query it. Update it. Move along.[/muted]",
-        border_style=border_style,
-        padding=(1, 2),
-        box=box.ROUNDED,
-    )
-    console.clear()
-    console.print(panel)
-
-
-def show_menu(selected: int | None = None):
-    console = _console()
-    console.clear()
-    console.print(render_screen(selected=selected))
-
-
-def show_banner():
-    console = _console()
-    banner_text = Text()
-    banner_text.append("\nYou have summoned the ", style="white")
-    banner_text.append("Dark Side", style="accent")
-    banner_text.append("\n\n")
-    panel = Panel(
-        Align.center(banner_text),
+        Align.center(body),
         border_style="border",
-        title="[title] EMPEROR'S COMMAND [/title]",
+        title=title,
         padding=(1, 2),
         box=box.ROUNDED,
     )
     console.clear()
     console.print(panel)
-    time.sleep(1.25)
+    time.sleep(duration)
     console.clear()

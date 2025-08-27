@@ -1,5 +1,7 @@
 import sys
 import time
+
+import requests
 import utils.panel_renderer as panels
 from rich.text import Text
 from rich.panel import Panel
@@ -9,12 +11,66 @@ from utils.ascii import LATER_DUDE
 from utils.auth import get_client_details, CLIENT_ID
 from utils.env_helper import print_indented
 from utils.room_ops import export_rooms, update_rooms
+from utils.bulk_create import create_rooms
+from utils.site_ops import lookup_or_create_site
 
 # -----------GLOBALS-----------
+
 INITIAL_LOOP = True
 IDENTITY = None
+FLASH = ""
+SITE_NAME_TO_ID: dict[str, str] = {}
+SITE_ID_TO_NAME: dict[str, str] = {}
 # -----------CLI MENU-----------
+
 console = panels._console()
+
+# -----------PRIVATE BUILDERS-----------
+
+
+def _ask_int(
+    label: str,
+    default: int,
+    *,
+    min_value: int | None = None,
+    explain: str = "defaults to",
+) -> int:
+
+    hint = f"{explain} {default}" + (
+        f" · min {min_value}" if min_value is not None else ""
+    )
+
+    while True:
+        raw = input_prompt(f"{label} [muted]{hint}[/muted] > ", uppercase=False)
+        if raw == "":
+            return default
+        try:
+            val = int(raw)
+        except ValueError:
+            print_indented("Please enter a whole number", style="red")
+            continue
+
+        if min_value is not None and val < min_value:
+            print_indented(f"Must be >= {min_value}", style="red")
+            continue
+        return val
+
+
+def _ask_str(
+    label: str,
+    default: str = "",
+    *,
+    allow_empty: bool = True,
+    explain: str = "defaults to",
+) -> str:
+    hint = f"{explain} {default}" if default else "optional"
+    raw = input_prompt(f"{label} [muted]{hint}[/muted] > ", uppercase=False)
+    if raw == "":
+        return default if allow_empty else ""
+    return raw
+
+
+# -----------PUBLIC RENDERERS-----------
 
 
 def bootup():
@@ -62,20 +118,9 @@ def bootup():
 
 
 def toggle_dark_mode():
-    global console
-    panels.DARK_MODE = not panels.DARK_MODE
-    # INITIAL_LOOP = True
-    if panels.DARK_MODE and not panels.BANNER_SHOWN:
-        panels.show_banner()
-        panels.BANNER_SHOWN = True
-        message = "[accent]The galaxy obeys your command…[/accent]"
-    else:
-        message = "[accent]The rebellion cowers before you no more…[/accent]"
-
+    global console, FLASH
+    FLASH = panels.toggle_theme()
     console = panels._console()
-    console.clear()
-    console.print(panels.render_screen(selected=None, identity=IDENTITY))
-    console.print(Text.from_markup(message))
 
 
 def print_goodbye():
@@ -92,22 +137,40 @@ def print_goodbye():
     )
 
 
-def input_prompt(question: str = "Select Task") -> str:
+def input_prompt(question: str = "", *, uppercase: bool = True) -> str:
     styles = panels.get_mode()
-    return (
-        console.input(f"[{styles['secondary']}]{styles['prompt_prefix']} {question}[/]")
-        .strip()
-        .upper()
-    )
+    s = console.input(
+        f"[{styles['secondary']}]{styles['prompt_prefix']} {question}[/]"
+    ).strip()
+    return s.upper() if uppercase else s
+
+
+def prompt_create_rooms() -> dict:
+    count = _ask_int("Number of rooms →", 10, min_value=1)
+    start = _ask_int("Starting Number →", 0)
+    base = _ask_str("Base name →", "Room")
+    site = _ask_str("Site Name (Optional)", "", allow_empty=True).strip()
+    try:
+        return {
+            "count": int(count),
+            "start": int(start),
+            "base_name": base,
+            "site_name": site,
+        }
+    except ValueError:
+        print_indented("Count and start must be integers", style="red bold")
+        return {}
 
 
 def main():
     bootup()
     while True:
         console.clear()
-        console.print(panels.render_screen(selected=None, identity=IDENTITY))
-        # panels.show_menu()
-        choice = input_prompt("Enter task selection [0,1,2] >")
+        console.print(
+            panels.render_screen(selected=None, identity=IDENTITY, flash=FLASH)
+        )
+
+        choice = input_prompt("Enter task selection [0,1,2,3] > ")
         if choice == panels.SECRET_CODE:
             toggle_dark_mode()
             continue
@@ -117,6 +180,31 @@ def main():
         elif choice == "2":
             console.print("[ok] Updating Room Metadata...[/ok]")
             update_rooms()
+        elif choice == "3":
+            params = prompt_create_rooms()
+            if not params:
+                time.sleep(0.5)
+                continue
+            site_id = None
+            site_name = params.pop("site_name", "").strip()
+            if site_name:
+                try:
+                    site_id = lookup_or_create_site(site_name)
+                except requests.RequestException as exc:
+                    print_indented(
+                        f"Site lookup/create failed (network): {exc}", style="red bold"
+                    )
+                    time.sleep(0.8)
+                    continue
+                except Exception as exc:
+                    print_indented(
+                        f"Site lookup/create failed: {exc}", style="red bold"
+                    )
+                    time.sleep(0.8)
+                    continue
+            console.print("[ok] Creating Rooms...[/ok]")
+            create_rooms(**params, siteId=site_id)
+            time.sleep(0.8)
         elif choice == "0":
             print_goodbye()
             sys.exit(1)
