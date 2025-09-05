@@ -79,7 +79,7 @@ def _status_badges(status_text="ONLINE", api_text="", identity: dict | None = No
     )
     t.add_row(
         _key_value_line(
-            "Lens API EP",
+            "API EP",
             f" {api_text}",
         ),
     )

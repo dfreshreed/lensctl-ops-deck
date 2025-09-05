@@ -12,15 +12,13 @@ from utils.auth import get_client_details, CLIENT_ID
 from utils.env_helper import print_indented
 from utils.room_ops import export_rooms, update_rooms
 from utils.bulk_create import create_rooms
-from utils.site_ops import lookup_or_create_site
+from utils.site_ops import create_site_if_not_exists
 
 # -----------GLOBALS-----------
 
 INITIAL_LOOP = True
 IDENTITY = None
 FLASH = ""
-SITE_NAME_TO_ID: dict[str, str] = {}
-SITE_ID_TO_NAME: dict[str, str] = {}
 # -----------CLI MENU-----------
 
 console = panels._console()
@@ -147,19 +145,15 @@ def input_prompt(question: str = "", *, uppercase: bool = True) -> str:
 
 def prompt_create_rooms() -> dict:
     count = _ask_int("Number of rooms →", 10, min_value=1)
-    start = _ask_int("Starting Number →", 0)
     base = _ask_str("Base name →", "Room")
+    start = _ask_int("Starting Number →", 0)
     site = _ask_str("Site Name (Optional)", "", allow_empty=True).strip()
-    try:
-        return {
-            "count": int(count),
-            "start": int(start),
-            "base_name": base,
-            "site_name": site,
-        }
-    except ValueError:
-        print_indented("Count and start must be integers", style="red bold")
-        return {}
+    return {
+        "count": count,
+        "base_name": base,
+        "start": start,
+        "site_name": site,
+    }
 
 
 def main():
@@ -189,7 +183,7 @@ def main():
             site_name = params.pop("site_name", "").strip()
             if site_name:
                 try:
-                    site_id = lookup_or_create_site(site_name)
+                    site_id = create_site_if_not_exists(site_name)
                 except requests.RequestException as exc:
                     print_indented(
                         f"Site lookup/create failed (network): {exc}", style="red bold"
@@ -207,7 +201,7 @@ def main():
             time.sleep(0.8)
         elif choice == "0":
             print_goodbye()
-            sys.exit(1)
+            sys.exit(0)
         else:
             print_indented("❌ Invalid choice. Please try again.", style="red bold")
 

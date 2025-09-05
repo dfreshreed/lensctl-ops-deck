@@ -82,17 +82,22 @@ def export_rooms():
             response.raise_for_status()
         except requests.RequestException as err:
             logger.error(f"Export request failed: {err}")
-            all_errors.append(err)
+            all_errors.append(f"Request error: {err}")
             total_errors += 1
             break
         data = response.json()
         if data.get("errors"):
             logger.error(f"GraphQL error:\n{json.dumps(data['errors'], indent=2)}")
-            all_errors.append(data["errors"])
+            all_errors.append(json.dumps(data["errors"], indent=2))
             total_errors += 1
             break
 
         tenants = data.get("data", {}).get("tenants", [])
+        if not tenants:
+            logger.error("No tenants returned in GraphQL response")
+            all_errors.append("No tenants returned in GQL response")
+            total_errors += 1
+            break
         room_data = tenants[0].get("roomData", {})
         edges = room_data.get("edges", [])
         page_info = room_data.get("pageInfo", {})
@@ -243,7 +248,7 @@ def update_rooms():
             and str(raw_capacity).strip()
         ):
             console_log(
-                f"[yellow]Warning:[/yellow] row {index} had [green]'capacity'[/green]:"
+                f"[yellow]Warning:[/yellow] row {index} had [green]'capacity'[/green]: "
                 f"[red]'{raw_capacity}'[/red], which isn't a number. "
                 "It's been set to [blue]null[/blue] (None). "
                 "See README › CSV Format: https://github.com/dfreshreed/lens-room-trooper "
@@ -316,10 +321,10 @@ def update_rooms():
         console_log(message)
     else:
         message = Text.assemble(
-            ("update_rooms()", "magenta"),
-            ("failed with", "red"),
+            ("update_rooms() ", "magenta"),
+            ("failed with ", "red"),
             (str(total_errors), "yellow"),
-            ("error(s)", "red"),
+            (" error(s)", "red"),
         )
         console_log(message)
 
