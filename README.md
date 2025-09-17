@@ -2,6 +2,10 @@
 
 **A CLI tool built for day-to-day Poly Lens tenant ops** → _Query it. Update it. Move along._
 
+#### Want to see it in action? 👇🏼
+
+[![YouTube - Watch demo](https://img.shields.io/badge/YouTube-Watch%20demo-red?logo=youtube&logoColor=white)](https://youtu.be/Hg4FEKGaGtM)
+
 ---
 
 ## 🚀 Features
