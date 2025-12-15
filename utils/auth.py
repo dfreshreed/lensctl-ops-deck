@@ -1,6 +1,7 @@
 import requests
 import os
 from rich.traceback import install
+from requests.adapters import HTTPAdapter
 from utils.env_helper import get_required_env, logger
 from typing import Optional, Dict, Any
 
@@ -43,6 +44,22 @@ query ClientCredential($clientCredentialId: String!) {
 
 _token_cache: Optional[str] = None
 _headers: Dict[str, str] = {"content-type": "application/json"}
+_session: Optional[requests.Session] = None
+
+
+def _get_session() -> requests.Session:
+    global _session
+    if _session is None:
+        _session = requests.Session()
+        # config connection pool for concurrent requests
+        # pool_maxsize should be >= max_wakers in ThreadPoolExecutor
+        adapter = HTTPAdapter(
+            pool_connections=50,  # cach for 50 different hosts
+            pool_maxsize=50,  # allow up to 50 concurrent connections per host
+        )
+        _session.mount("https://", adapter)
+        _session.mount("http://", adapter)
+    return _session
 
 
 def _token_request() -> str:
@@ -55,7 +72,7 @@ def _token_request() -> str:
         "client_secret": CLIENT_SECRET,
         "grant_type": "client_credentials",
     }
-    auth_response = requests.post(TOKEN_URL, headers=_headers, json=auth_payload)
+    auth_response = _get_session().post(TOKEN_URL, headers=_headers, json=auth_payload)
     try:
         auth_response.raise_for_status()
     except requests.HTTPError as exception:
@@ -88,7 +105,7 @@ def execute_gql(
     payload: Dict[str, Any] = {"query": query}
     if variables is not None:
         payload["variables"] = variables
-    response = requests.post(GRAPHQL_URL, headers=get_headers(), json=payload)
+    response = _get_session().post(GRAPHQL_URL, headers=get_headers(), json=payload)
     try:
         response.raise_for_status()
     except requests.HTTPError as exception:
@@ -105,7 +122,7 @@ def get_client_details(client_id: str, *, timeout: int = 10) -> Dict[str, Any]:
         "query": GET_CLIENT_DETAILS,
         "variables": {"clientCredentialId": cid},
     }
-    response = requests.post(
+    response = _get_session().post(
         GRAPHQL_URL, headers=get_headers(), json=payload, timeout=timeout
     )
     response.raise_for_status()
@@ -120,6 +137,6 @@ def get_client_details(client_id: str, *, timeout: int = 10) -> Dict[str, Any]:
             if role_obj and role_obj.get("name"):
                 role = role_obj["name"]
                 break
-            if role:
-                break
+        if role:
+            break
     return {"name": name, "role": role}

@@ -13,6 +13,7 @@ from utils.env_helper import print_indented
 from utils.room_ops import export_rooms, update_rooms
 from utils.bulk_create import create_rooms
 from utils.site_ops import create_site_if_not_exists
+from utils.compliance_ops import check_compliance
 
 # -----------GLOBALS-----------
 
@@ -164,7 +165,7 @@ def main():
             panels.render_screen(selected=None, identity=IDENTITY, flash=FLASH)
         )
 
-        choice = input_prompt("Enter task selection [0,1,2,3] > ")
+        choice = input_prompt("Enter task selection [0,1,2,3,4] > ")
         if choice == panels.SECRET_CODE:
             toggle_dark_mode()
             continue
@@ -199,6 +200,8 @@ def main():
             console.print("[ok] Creating Rooms...[/ok]")
             create_rooms(**params, siteId=site_id)
             time.sleep(0.8)
+        elif choice == "4":
+            check_compliance()
         elif choice == "0":
             print_goodbye()
             sys.exit(0)

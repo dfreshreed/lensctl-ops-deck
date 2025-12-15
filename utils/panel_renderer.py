@@ -102,21 +102,42 @@ def _status_badges(status_text="ONLINE", api_text="", identity: dict | None = No
 
 
 def _tasks(selected: int | None = None):
-    rows = [
-        "Exit",
-        "Export Lens Rooms → CSV",
-        "Update Lens Rooms ← CSV",
-        "Create Rooms (bulk)",
+    # Task definitions: (label, description)
+    tasks = [
+        ("Exit", "Close the application"),
+        (
+            f"Export Lens Rooms [bold cyan]>>[/bold cyan] CSV",
+            "Export all room metadata to a CSV file"
+        ),
+        (
+            "Update Lens Rooms [bold cyan]<<[/bold cyan] CSV",
+            "Update room metadata from a CSV file"
+        ),
+        (
+            "Create Rooms (bulk)",
+            "Create multiple rooms with auto-numbered names"
+        ),
+        (
+            "Export Lens Desktop Policy Compliance",
+            "Analyze device compliance against policy baseline"
+        ),
     ]
+
     tb = Table.grid(padding=(0, 1))
-    tb.add_column(justify="right", style="muted", no_wrap=True)
+    tb.add_column(justify="right", style="muted", no_wrap=True, width=3)
     tb.add_column()
-    for i, label in enumerate(rows):
+
+    for i, (label, description) in enumerate(tasks):
         index = f"{i}"
         if selected == i:
+            # Highlighted selection
             tb.add_row(index, Text(f" {label} ", style="reverse"))
+            tb.add_row("", Text(f" {description} ", style="reverse muted"))
         else:
+            # Normal display
             tb.add_row(index, label)
+            tb.add_row("", f"[muted]{description}[/muted]")
+
     return Panel(
         tb,
         title="[accent] TASKS [/accent]",
