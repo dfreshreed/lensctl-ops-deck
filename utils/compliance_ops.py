@@ -526,8 +526,11 @@ def filter_devices_by_baseline(
                     filtered_devices.append(device)
             if not silent:
                 console_log(
-                    f"[green]Found {len(filtered_devices)} devices with {baseline_layer} policies [/green]"
+                    f"[green]Found [yellow]{len(filtered_devices)}[/yellow] devices with {baseline_layer} policies [/green]"
                 )
+            return filtered_devices
+
+        # single policy
         baseline_policy = compliance_baseline.get("policy")
         if not baseline_policy:
             if not silent:
@@ -609,20 +612,11 @@ def analyze_and_group_devices(
         controlling = attribution.get("controlling_layer") or {}
         effective = attribution.get("effective") or {}
 
-        if not controlling or controlling.get("type") == "unknown":
-            console_log(
-                f"[yellow]⚠️  Device {device.get('name', 'Unknown')} has no controlling layer[/yellow]"
-            )
-            console_log(f"  Device ID: {device.get('id')}")
-            console_log(f"  Attribution: {attribution}")
-            console_log(f"  All layers: {attribution.get('all_layers', [])}")
-            console.print()
-
         controlling_type = controlling.get("type", "unknown")
         controlling_name = controlling.get("name", "Unknown")
         controlling_id = controlling.get("id", "unknown")
 
-        # determing expected version
+        # controlling policy expected version
         catalog_id = _get_catalog_id(device.get("hardwareProduct"))
         if effective.get("use_latest"):
             raw_version = latest_versions.get(catalog_id) if catalog_id else ""
@@ -632,10 +626,88 @@ def analyze_and_group_devices(
         else:
             expected_version = _normalize_version(effective.get("version") or "")
 
-        # check compliance
-        baseline_expected_version = _get_baseline_version_for_device(
-            device, compliance_baseline, latest_versions
-        )
+        if compliance_baseline.get("all_policies"):
+            baseline_layer = compliance_baseline.get("layer")  # site or user_group
+            # find baseline policy layer in this device's policy stack
+            all_layers = attribution.get("all_layers", [])
+
+            baseline_policy_for_device = None
+
+            for layer in all_layers:
+                if layer.get("type") == baseline_layer:
+                    baseline_policy_for_device = layer
+                    break
+
+            if baseline_policy_for_device:
+                # use baseline layer policy for grouping
+                grouping_type = baseline_policy_for_device.get("type", "unknown")
+                grouping_name = baseline_policy_for_device.get("name", "Unknown")
+                grouping_id = baseline_policy_for_device.get("id", "unknown")
+
+                # get expected version from baseline layer policy settings
+                baseline_settings = baseline_policy_for_device.get("settings", {})
+
+                # Check if this policy has platform-specific variations
+                if baseline_settings.get("has_variations"):
+                    # Find the variation matching this device's catalog_id
+                    variations = baseline_settings.get("variations", [])
+                    matching_variation = None
+
+                    for variation in variations:
+                        prop_value = variation.get("property_value", {}).get("value")
+                        if prop_value == catalog_id:
+                            matching_variation = variation
+                            break
+
+                    if matching_variation:
+                        # Extract version from the matching variation
+                        use_latest_obj = matching_variation.get("use_latest") or {}
+                        if use_latest_obj.get("value"):
+                            raw_version = (
+                                latest_versions.get(catalog_id) if catalog_id else ""
+                            )
+                            baseline_expected_version = (
+                                _normalize_version(raw_version)
+                                if raw_version
+                                else "Unknown"
+                            )
+                        else:
+                            version_obj = matching_variation.get("version") or {}
+                            baseline_expected_version = _normalize_version(
+                                version_obj.get("value") or ""
+                            )
+                    else:
+                        # No matching variation found
+                        baseline_expected_version = "Not Configured"
+                else:
+                    # Simple policy (no variations)
+                    if baseline_settings.get("use_latest"):
+                        raw_version = (
+                            latest_versions.get(catalog_id) if catalog_id else ""
+                        )
+                        baseline_expected_version = (
+                            _normalize_version(raw_version)
+                            if raw_version
+                            else "Unknown"
+                        )
+                    else:
+                        baseline_expected_version = _normalize_version(
+                            baseline_settings.get("version") or ""
+                        )
+            else:
+                # device not member of any site/group → skip it
+                # should've been filtered already but catch in case
+                continue
+        else:
+            # single policy specified. use controlling policy for grouping
+            grouping_type = controlling.get("type", "unknown")
+            grouping_name = controlling.get("name", "Unknown")
+            grouping_id = controlling.get("id", "unknown")
+
+            # get baseline expected version
+            baseline_expected_version = _get_baseline_version_for_device(
+                device, compliance_baseline, latest_versions
+            )
 
         is_compliant_with_controlling = (
             software_version == expected_version if expected_version else False
@@ -649,9 +721,9 @@ def analyze_and_group_devices(
 
         # create group key
         group_key = (
-            controlling_type,
-            controlling_name,
-            controlling_id,
+            grouping_type,
+            grouping_name,
+            grouping_id,
             platform,
             software_version,
             expected_version,  # controlling policy sw version value
@@ -660,9 +732,11 @@ def analyze_and_group_devices(
 
         if group_key not in groups:
             groups[group_key] = {
+                "grouping_type": grouping_type,
+                "grouping_name": grouping_name,
+                "grouping_id": grouping_id,
                 "controlling_type": controlling_type,
                 "controlling_name": controlling_name,
-                "controlling_id": controlling_id,
                 "platform": platform,
                 "device_version": software_version,
                 "controlling_expected_version": expected_version,
@@ -718,17 +792,6 @@ def display_aggregated_compliance_report(
     platform_totals = analysis["platform_totals"]
     total_devices = analysis["total_devices"]
 
-    # summary panel
-
-    baseline_layer = compliance_baseline.get("layer")
-    baseline_display = compliance_baseline.get("display", "Unknown")
-    console_log(
-        "[bold]═══════════════════════════════════════════════════════════════[/bold]"
-    )
-
-    baseline_policy = compliance_baseline.get("policy", {})
-    baseline_settings = baseline_policy.get("settings", {})
-
     console_log(
         "[bold]═══════════════════════════════════════════════════════════════[/bold]"
     )
@@ -753,14 +816,18 @@ def display_aggregated_compliance_report(
 
     baseline_layer = compliance_baseline.get("layer")
     if baseline_layer in ["site", "user_group"]:
-        baseline_policy = compliance_baseline.get("policy", {})
-        policy_name = baseline_policy.get("name", "Unknown")
-        if baseline_layer == "site":
-            match = re.search(r"\(([^)]+)\)", policy_name)
-            clean_name = match.group(1) if match else policy_name
+        # check all policies
+        if compliance_baseline.get("all_policies"):
+            clean_name = compliance_baseline.get("display", "Unknown")
         else:
-            match = re.search(r"Group\(([^)]+)\)", policy_name)
-            clean_name = match.group(1) if match else policy_name
+            baseline_policy = compliance_baseline.get("policy", {})
+            policy_name = baseline_policy.get("name", "Unknown")
+            if baseline_layer == "site":
+                match = re.search(r"\(([^)]+)\)", policy_name)
+                clean_name = match.group(1) if match else policy_name
+            else:
+                match = re.search(r"Group\(([^)]+)\)", policy_name)
+                clean_name = match.group(1) if match else policy_name
 
         title = f"[bold]Lens Desktop Compliance Summary - {clean_name}[/bold]"
     else:
@@ -793,24 +860,38 @@ def display_aggregated_compliance_report(
     sorted_groups = sorted(
         groups,
         key=lambda g: (
-            type_priority.get(g["controlling_type"], 99),
-            g["controlling_id"],  # group by specific policy
+            type_priority.get(g["grouping_type"], 99),
+            g["grouping_id"],  # group by specific policy
             g["platform"],
             -g["count"],  # desc
         ),
     )
 
     # group by policy for section-based display
-    console_log("[bold cyan]Devices Grouped by Controlling Policy Layer[/bold cyan]")
+    if compliance_baseline.get("all_policies"):
+        baseline_layer = compliance_baseline.get("layer")
+        if baseline_layer == "site":
+            grouping_label = "Devices Grouped by Site Policy"
+        elif baseline_layer == "user_group":
+            grouping_label = "Devices Grouped by Device User Group Policy"
+        else:
+            grouping_label = "Devices Grouped by Policy Layer"
+    else:
+        grouping_label = "Devices Grouped by Controlling Policy Layer"
+
+    console_log(f"[bold cyan]{grouping_label}[/bold cyan]")
     console.print()
 
     current_policy_id = None
     current_table = None
+    current_platform = None
 
     for group in sorted_groups:
+        grouping_type = group["grouping_type"]
+        grouping_name = group["grouping_name"]
+        grouping_id = group["grouping_id"]
         controlling_type = group["controlling_type"]
         controlling_name = group["controlling_name"]
-        controlling_id = group["controlling_id"]
         platform = group["platform"]
         device_version = group["device_version"]
         controlling_expected = group["controlling_expected_version"]
@@ -820,21 +901,21 @@ def display_aggregated_compliance_report(
         compliant_with_baseline = group["compliant_with_baseline_count"]
 
         # extract policy display name
-        if controlling_type == "device":
-            match = re.search(r"\(([a-f0-9-]+)\)", controlling_name)
+        if grouping_type == "device":
+            match = re.search(r"\(([a-f0-9-]+)\)", grouping_name)
             policy_display = match.group(1)[:12] + "..." if match else "Unknown"
-        elif controlling_type == "site":
-            match = re.search(r"\(([^)]+)\)", controlling_name)
+        elif grouping_type == "site":
+            match = re.search(r"\(([^)]+)\)", grouping_name)
             policy_display = match.group(1) if match else "Unknown"
-        elif controlling_type == "user_group":
-            match = re.search(r"Group\(([^)]+)\)", controlling_name)
+        elif grouping_type == "user_group":
+            match = re.search(r"Group\(([^)]+)\)", grouping_name)
             policy_display = match.group(1) if match else "Unknown"
         else:
-            match = re.search(r"^(.*?)\s+Update\s+Policy", controlling_name)
+            match = re.search(r"^(.*?)\s+Update\s+Policy", grouping_name)
             policy_display = match.group(1) if match else "Unknown"
 
         # when we hit a new policy, print the previous table and create a new section
-        if current_policy_id != controlling_id:
+        if current_policy_id != grouping_id:
             # print previous table if it exists
             if current_table is not None:
                 console.print(current_table)
@@ -843,12 +924,12 @@ def display_aggregated_compliance_report(
             # create section header with policy type and name
             type_headers = {
                 "device": "▶ DEVICE POLICY",
-                "user_group": "▶ USER GROUP POLICY",
+                "user_group": "▶ DEVICE USER GROUP POLICY",
                 "site": "▶ SITE POLICY",
                 "model": "▶ ACCOUNT POLICY",
             }
             header_prefix = type_headers.get(
-                controlling_type, f"▶ {controlling_type.upper()}"
+                grouping_type, f"▶ {grouping_type.upper()}"
             )
 
             # show expected versions in header
@@ -860,19 +941,44 @@ def display_aggregated_compliance_report(
             console_log(f"[bold cyan]{header_text}[/bold cyan]")
 
             # create new table for this policy
-            current_table = Table(show_header=True, header_style="bold magenta")
-            current_table.add_column("Platform", style="white", width=20)
+            current_table = Table(
+                show_header=True, header_style="bold magenta", padding=(0, 0)
+            )
+            current_table.add_column("Platform", style="white", width=20, no_wrap=True)
             current_table.add_column("Device SW Ver", style="cyan", width=14)
             current_table.add_column(
-                "Policy Expects", style="magenta", width=14, justify="right"
+                f"{policy_display} Policy Ver",
+                style="magenta",
+                width=14,
+                justify="right",
             )
-            current_table.add_column("Count", style="white", justify="right", width=8)
+            current_table.add_column("Controlling Policy", style="dim", width=24)
+            current_table.add_column(
+                "Device Count", style="white", justify="right", width=8
+            )
             current_table.add_column(
                 "% Platform", style="white", justify="right", width=11
             )
             current_table.add_column("Status", style="white", justify="center", width=8)
 
-            current_policy_id = controlling_id
+            current_policy_id = grouping_id
+            current_platform = None
+
+            # add platform header row to distinguish grouping
+        if current_platform != platform and current_table is not None:
+            platform_short = platform.replace("Lens Desktop", "")
+
+            # platform header row - name in col 1 rest empty
+            current_table.add_row(
+                f"[bold cyan]{platform_short}[/bold cyan]",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "",
+            )
+            current_platform = platform
 
         # add row to current table
         device_matches_controlling = device_version == controlling_expected
@@ -892,11 +998,16 @@ def display_aggregated_compliance_report(
             else f"[yellow]{device_version}[/yellow]"
         )
 
+        if controlling_type == grouping_type:
+            controlling_display_text = f"{grouping_type.title()} Policy"
+        else:
+            controlling_display_text = f"{controlling_type.title()} Policy (override)"
         if current_table is not None:
             current_table.add_row(
-                platform,
+                "",
                 device_version_display,
-                controlling_display,
+                baseline_expected,
+                controlling_display_text,
                 f"{count:,}",
                 f"{pct_platform:.1f}%",
                 status_display,
@@ -1166,13 +1277,13 @@ def check_compliance():
     console_log(f"Tenant ID: [bold]{tenant_id}[/bold]")
     console.print()
 
-    # step 3: fetch latest CDN versions for both platforms
+    # step 1: fetch latest CDN versions for both platforms
     catalog_ids = list(PLATFORM_CATALOG_MAP.values())
     labels = {value: key for key, value in PLATFORM_CATALOG_MAP.items()}
     latest_versions = fetch_multiple_latest_versions(catalog_ids, labels)
     console.print()
 
-    # step 4: fetch devices
+    # step 2: fetch devices
     devices = fetch_devices_by_model(
         tenant_id, "Lens Desktop", log_prefix="Lens Desktop devices"
     )
@@ -1182,7 +1293,7 @@ def check_compliance():
         return
     console.print()
 
-    # step 5: fetch policy attribution for each device
+    # step 3: fetch policy attribution for each device
     devices = devices[:100]
     console_log(f"[red bold]REMOVE ME AFTER TESTING {len(devices)}[/red bold]")
     _, failed = fetch_policy_attributions_concurrent(devices, max_workers=5)
@@ -1231,7 +1342,7 @@ def check_compliance():
 
         # diff messages for filtered vs unfiltered
         if baseline_layer in ["site", "user_group"] and device_count < total_count:
-            device_msg = f"[cyan]Devices in {baseline_layer}:[/cyan] [bold]{device_count:,}[/bold] of {total_count:,} total"
+            device_msg = f"[cyan]Devices in {baseline_layer}s:[/cyan] [bold]{device_count:,}[/bold] of {total_count:,} total"
         else:
             device_msg = (
                 f"[cyan]Devices to Analyze:[/cyan] [bold]{device_count:,}[/bold]"
@@ -1269,7 +1380,7 @@ def check_compliance():
             console.print()
             continue
 
-    # step 5.5: Filter devices based on baseline selection
+    # step 4: Filter devices based on baseline selection
     filtered_devices = filter_devices_by_baseline(devices, compliance_baseline)
 
     if not filtered_devices:
@@ -1283,16 +1394,16 @@ def check_compliance():
 
     console.print()
 
-    # step 6: Analyze and group devices
+    # step 5: Analyze and group devices
     analysis = analyze_and_group_devices(
         filtered_devices, latest_versions, compliance_baseline=compliance_baseline
     )
     console.print()
 
-    # step 7: display aggregated report
+    # step 6: display aggregated report
     display_aggregated_compliance_report(analysis, compliance_baseline)
 
-    # step 8: export full CSV
+    # step 7: export full CSV
     export_compliance_csv_full_details(
         filtered_devices, latest_versions, compliance_baseline
     )
