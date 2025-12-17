@@ -3,7 +3,9 @@ from typing import List, Dict, Any
 from rich.table import Table
 from rich.panel import Panel
 from rich.text import Text
-import pandas as pd
+from rich.align import Align
+from rich import print as pr
+from rich.columns import Columns
 import re
 import time
 
@@ -32,9 +34,11 @@ PLATFORM_CATALOG_MAP = {
 def _normalize_platform(hardware_product: str) -> str:
     if not hardware_product:
         return "Unknown"
-    if "Mac" in hardware_product:
+    # Case-insensitive matching for Mac/macOS and Windows
+    hardware_lower = hardware_product.lower()
+    if "mac" in hardware_lower:
         return "Lens Desktop Mac"
-    elif "Windows" in hardware_product:
+    elif "windows" in hardware_lower:
         return "Lens Desktop Windows"
     else:
         return hardware_product
@@ -114,9 +118,9 @@ def parse_policy_attribution(policy_stack: Dict[str, Any]) -> Dict[str, Any]:
         source_name = source.get("name", "Unknown")
         source_id = source.get("id")
 
-        console_log(
-            f"[dim]Processing source: type={source_type}, priority={source_priority}, name={source_name[:50]}...[/dim]"
-        )
+        # console_log(
+        #     f"[dim]Processing source: type={source_type}, priority={source_priority}, name={source_name[:50]}...[/dim]"
+        # )
 
         # check if this source has configured settings
         source_caps = source.get("capabilities") or {}
@@ -137,9 +141,9 @@ def parse_policy_attribution(policy_stack: Dict[str, Any]) -> Dict[str, Any]:
         # has settings if either policy has values or policy_variations exists
         has_settings = policy_has_values or len(policy_variations) > 0
 
-        console_log(
-            f"[dim]  policy_has_values={policy_has_values}, policy_variations len={len(policy_variations)}, has_settings={has_settings}[/dim]"
-        )
+        # console_log(
+        #     f"[dim]  policy_has_values={policy_has_values}, policy_variations len={len(policy_variations)}, has_settings={has_settings}[/dim]"
+        # )
 
         layer_info = {
             "type": source_type,
@@ -171,9 +175,9 @@ def parse_policy_attribution(policy_stack: Dict[str, Any]) -> Dict[str, Any]:
                     "use_latest": use_latest_obj.get("value"),
                 }
         all_layers.append(layer_info)
-        console_log(
-            f"[dim]  Added to all_layers. Total layers now: {len(all_layers)}[/dim]"
-        )
+        # console_log(
+        #     f"[dim]  Added to all_layers. Total layers now: {len(all_layers)}[/dim]"
+        # )
 
         # first source w/ settings is controlling (applied) policy
         if has_settings and not controlling_layer:
@@ -252,16 +256,18 @@ def prompt_compliance_target(
     """
 
     console.print()
-    console_log("[bold cyan]Select Policy Compliance Measurement Baseline[/bold cyan]")
-    console.print()
+    console.print(
+        "[bold cyan]Select Policy Compliance Measurement Baseline[/bold cyan]"
+    )
     console.print("[dim]─[/dim]" * 100)
-    console_log(
-        "\n  [white]Choose which policy layer to measure compliance against.[/white]\n"
+    console.print()
+    console.print(
+        "[white]Choose which policy layer to measure compliance against:[/white]\n"
         "  [dim]• Each device will be compared to the software version specified in your selected baseline.[/dim]\n"
         "  [dim]• Results show which devices match ([green]compliant[/green]) or differ ([yellow]non-compliant[/yellow]) from that baseline.[/dim]\n"
         "  [dim]• Compliance summary displays below. Full per-device details export to [cyan]lens-desktop-compliance.csv[/cyan][/dim]\n"
         "\n"
-        "  [dim]• Example: If you're using Account Model Policy to specify a version and want to know how many devices are compliant, select option 1. This will return[/dim]"
+        "  [dim]• Example: If you're using Account Model Policy to specify a version and want to know how many devices are compliant, select option 1.[/dim]"
     )
     console.print("[dim]─[/dim]" * 100)
     console.print()
@@ -355,7 +361,7 @@ def _select_from_submenu(
     """
 
     console.print()
-    console_log(f"[bold cyan]Select {layer_type.replace('_', '').title()}[/bold cyan]")
+    console_log(f"[bold]Select {layer_type.replace('_', '').title()}[/bold]")
     console.print()
 
     table = Table(show_header=True, header_style="bold magenta")
@@ -510,7 +516,7 @@ def filter_devices_by_baseline(
         if compliance_baseline.get("all_policies"):
             if not silent:
                 console_log(
-                    f"[cyan]Filtering devices to member of any {baseline_layer} policy [/cyan]"
+                    f"[bold]Filtering devices with any {baseline_layer} policy [bold]"
                 )
             filtered_devices = []
 
@@ -526,7 +532,7 @@ def filter_devices_by_baseline(
                     filtered_devices.append(device)
             if not silent:
                 console_log(
-                    f"[green]Found [yellow]{len(filtered_devices)}[/yellow] devices with {baseline_layer} policies [/green]"
+                    f"  [bold]Found [green]{len(filtered_devices)}[/green] devices with {baseline_layer} policies [/bold]"
                 )
             return filtered_devices
 
@@ -786,16 +792,13 @@ def display_aggregated_compliance_report(
     compact view for large device counts
     """
 
-    console.print()
+    # console.print()
 
     groups = analysis["groups"]
     platform_totals = analysis["platform_totals"]
     total_devices = analysis["total_devices"]
 
-    console_log(
-        "[bold]═══════════════════════════════════════════════════════════════[/bold]"
-    )
-    console.print()
+    # console.print()
 
     # summary panel
     total_compliant = analysis.get("total_compliant_with_baseline", 0)
@@ -833,26 +836,28 @@ def display_aggregated_compliance_report(
     else:
         title = f"[bold]Lens Desktop Compliance Summary[/bold]"
 
-    panel = Panel(
+    summary_panel = Panel(
         summary,
         title=title,
         border_style="cyan",
     )
-    console.print(panel)
-    console.print()
 
     # platform breakdown summary
 
-    platform_summary = Table(
-        title="Platform Distribution", show_header=True, header_style="bold magenta"
-    )
+    platform_summary = Table(show_header=True, header_style="bold magenta")
     platform_summary.add_column("Platform", style="cyan", width=20)
     platform_summary.add_column("Total Devices", style="white", justify="right")
 
     for platform, count in sorted(platform_totals.items()):
         platform_summary.add_row(platform, f"{count:,}")
 
-    console.print(platform_summary)
+    platform_panel = Panel(
+        Align.center(platform_summary),
+        title="Platform Distribution",
+        border_style="cyan",
+        padding=(0, 1),
+    )
+    console.print(Columns([summary_panel, platform_panel], expand=True))
     console.print()
 
     # sort groups by: controlling type priority, then controlling name/id, then platform, then count desc
@@ -879,12 +884,13 @@ def display_aggregated_compliance_report(
     else:
         grouping_label = "Devices Grouped by Controlling Policy Layer"
 
-    console_log(f"[bold cyan]{grouping_label}[/bold cyan]")
+    console_log(f"[bold]{grouping_label}[/bold]")
     console.print()
 
     current_policy_id = None
     current_table = None
     current_platform = None
+    header_text = ""
 
     for group in sorted_groups:
         grouping_type = group["grouping_type"]
@@ -918,7 +924,13 @@ def display_aggregated_compliance_report(
         if current_policy_id != grouping_id:
             # print previous table if it exists
             if current_table is not None:
-                console.print(current_table)
+                policy_panel = Panel(
+                    Align.center(current_table),
+                    title=header_text if header_text else "",
+                    border_style="magenta",
+                    padding=(0, 1),
+                )
+                console.print(policy_panel)
                 console.print()
 
             # create section header with policy type and name
@@ -932,32 +944,33 @@ def display_aggregated_compliance_report(
                 grouping_type, f"▶ {grouping_type.upper()}"
             )
 
-            # show expected versions in header
-            if baseline_expected and baseline_expected != "N/A":
-                header_text = f"{header_prefix}: {policy_display} (baseline expects {baseline_expected})"
-            else:
-                header_text = f"{header_prefix}: {policy_display}"
-
-            console_log(f"[bold cyan]{header_text}[/bold cyan]")
+            # header text with policy name (version shown in table column)
+            header_text = f"[cyan]{header_prefix}:[/cyan] [bold]{policy_display}[bold]"
 
             # create new table for this policy
             current_table = Table(
                 show_header=True, header_style="bold magenta", padding=(0, 0)
             )
-            current_table.add_column("Platform", style="white", width=20, no_wrap=True)
-            current_table.add_column("Device SW Ver", style="cyan", width=14)
             current_table.add_column(
-                f"{policy_display} Policy Ver",
+                "Platform", style="white", width=22, justify="center", no_wrap=True
+            )
+            current_table.add_column(
+                "Device Count", style="white", justify="center", width=16
+            )
+            current_table.add_column(
+                "Device SW Ver.", style="cyan", justify="center", width=16
+            )
+            current_table.add_column(
+                f"{policy_display} Policy SW Ver.",
                 style="magenta",
-                width=14,
-                justify="right",
-            )
-            current_table.add_column("Controlling Policy", style="dim", width=24)
-            current_table.add_column(
-                "Device Count", style="white", justify="right", width=8
+                width=16,
+                justify="center",
             )
             current_table.add_column(
-                "% Platform", style="white", justify="right", width=11
+                "Controlling Policy", style="dim", justify="center", width=24
+            )
+            current_table.add_column(
+                "% Platform", style="white", justify="center", width=16
             )
             current_table.add_column("Status", style="white", justify="center", width=8)
 
@@ -970,7 +983,7 @@ def display_aggregated_compliance_report(
 
             # platform header row - name in col 1 rest empty
             current_table.add_row(
-                f"[bold cyan]{platform_short}[/bold cyan]",
+                f"[bold blue]{platform_short}[/bold blue]",
                 "",
                 "",
                 "",
@@ -1002,26 +1015,36 @@ def display_aggregated_compliance_report(
             controlling_display_text = f"{grouping_type.title()} Policy"
         else:
             controlling_display_text = f"{controlling_type.title()} Policy (override)"
+
+        # Add simplified platform name for data row
+        platform_short = platform.replace("Lens Desktop ", "")
+
         if current_table is not None:
             current_table.add_row(
                 "",
+                f"{count:,}",
                 device_version_display,
                 baseline_expected,
                 controlling_display_text,
-                f"{count:,}",
                 f"{pct_platform:.1f}%",
                 status_display,
             )
 
     # print final table
     if current_table is not None:
-        console.print(current_table)
+        policy_panel = Panel(
+            Align.center(current_table),
+            title=header_text,
+            border_style="magenta",
+            padding=(0, 1),
+        )
+        console.print(policy_panel)
         console.print()
     console.print(
         "[dim]═══════════════════════════════════════════════════════════════[/dim]"
     )
     console.print(
-        "[dim]Policy Priority: Device (highest) → User Group → Site → Account (tenant-wide default)[/dim]"
+        "[dim]Policy Interitance Priority: Device (highest) → User Group → Site → Account (lowest)[/dim]"
     )
     console.print(
         "[dim]═══════════════════════════════════════════════════════════════[/dim]"
@@ -1109,15 +1132,33 @@ def export_compliance_csv_full_details(
             policy_stack_summary = []
             for layer in all_layers:
                 layer_type = layer.get("type") or ""
+                layer_name = layer.get("name", "Unknown")
                 is_controlling = layer.get("is_controlling", False)
                 has_settings = layer.get("has_settings", False)
 
-                if is_controlling:
-                    policy_stack_summary.append(f"[{layer_type}*]")
-                elif has_settings:
-                    policy_stack_summary.append(f"[{layer_type}]")
+                # Extract clean policy name
+                if layer_type == "device":
+                    match = re.search(r"\(([a-f0-9-]+)\)", layer_name)
+                    clean_name = match.group(1)[:8] + "..." if match else "Device"
+                    display = f"Device ({clean_name})"
+                elif layer_type == "site":
+                    match = re.search(r"\(([^)]+)\)", layer_name)
+                    clean_name = match.group(1) if match else "Site"
+                    display = f"Site ({clean_name})"
+                elif layer_type == "user_group":
+                    match = re.search(r"Group\(([^)]+)\)", layer_name)
+                    clean_name = match.group(1) if match else "User Group"
+                    display = f"User Group ({clean_name})"
+                elif layer_type == "model":
+                    display = "Account"
                 else:
-                    policy_stack_summary.append(f"[{layer_type}]")
+                    display = layer_type.title()
+
+                # Mark controlling layer with asterisk
+                if is_controlling:
+                    display += "*"
+
+                policy_stack_summary.append(display)
             policy_stack_str = " -> ".join(policy_stack_summary)
 
             row = {
@@ -1157,7 +1198,9 @@ def export_compliance_csv_full_details(
             writer.writerow(row)
             row_count += 1
 
-    console_log(f"[green]Exported {row_count:,} devices to [bold]{filename}[/bold]")
+    console_log(
+        f"[bold]Exported [blue]{row_count:,}[/blue] devices to [green]{filename}[/green][/bold]"
+    )
     console_log(
         "[dim]CSV includes: Device details, policy attribution, compliance status, full policy stack [/dim]"
     )
@@ -1194,8 +1237,8 @@ def fetch_policy_attributions_concurrent(
     failed = 0
 
     console_log(
-        f"[cyan]Fetching policy attribution for {total:,} devices "
-        f"(using {max_workers} concurrent workers)...[/cyan]"
+        f"[bold]Fetching policy attribution for {total:,} devices "
+        f"(using {max_workers} concurrent workers)...[/bold]"
     )
     start_time = time.time()
     # ThreadPoolExectuor manages a pool of worker threads
@@ -1253,7 +1296,9 @@ def fetch_policy_attributions_concurrent(
     console_log(
         f"[green]Completed in {elapsed/60:.1f} minutes ({elapsed:.1f} seconds) [/green]"
     )
-    console_log(f"  Successful: {completed:,} | Failed: {failed:,}")
+    console_log(
+        f"  [green]Successful: {completed:,}[/green] | [red]Failed: {failed:,}[/red]"
+    )
 
     if failed > 0:
         console_log(
@@ -1264,7 +1309,7 @@ def fetch_policy_attributions_concurrent(
 
 
 def check_compliance():
-    console_log("[bold cyan]Starting Lens Desktop Compliance Check[/bold cyan]")
+    console_log("[bold]Starting Lens Desktop Compliance Check[/bold]")
     console.print()
 
     # get tenantID from .env
@@ -1294,8 +1339,8 @@ def check_compliance():
     console.print()
 
     # step 3: fetch policy attribution for each device
-    devices = devices[:100]
-    console_log(f"[red bold]REMOVE ME AFTER TESTING {len(devices)}[/red bold]")
+    # devices = devices[:100]
+
     _, failed = fetch_policy_attributions_concurrent(devices, max_workers=5)
 
     if failed > len(devices) * 0.5:
@@ -1307,7 +1352,7 @@ def check_compliance():
     console.print()
 
     # extract unique policies and prompt for baseline
-    console_log("[cyan]Analyzing policy landscape...[/cyan]")
+    console_log("[bold]Analyzing policy landscape...[/bold]")
     unique_policies = extract_unique_policies(devices)
 
     total_policies = sum(len(policies) for policies in unique_policies.values())
@@ -1409,5 +1454,5 @@ def check_compliance():
     )
     console.print()
 
-    console_log("[green]Compliance check complete[/green]")
+    console_log("[bold]Compliance check complete[/bold]")
     menu_return()

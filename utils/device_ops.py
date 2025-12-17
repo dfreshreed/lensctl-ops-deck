@@ -1,5 +1,6 @@
 from typing import List, Dict, Any, Optional
 import requests
+import time
 
 from utils import auth
 from utils.env_helper import console_log, pretty_node_deets
@@ -126,13 +127,23 @@ DEVICE_POLICY_CAPABILITIES = """
 
 
 def fetch_devices_by_model(
-    tenant_id: str, hardware_model_filter: str, log_prefix: str = "devices"
+    tenant_id: str,
+    hardware_model_filter: str,
+    log_prefix: str = "devices",
+    *,
+    debug_nodes: bool = False,
+    sample_nodes: int = 0,
+    progress: bool = True,
+    progress_interval_s: float = 1.0,
 ) -> List[Devices]:
 
-    console_log(f"Fetching {log_prefix}...")
+    console_log(f"[bold]Fetching {log_prefix}...[/bold]")
 
-    all_devices = []
+    all_devices: List[Devices] = []
     all_errors = []
+    total_count: Optional[int] = None
+    start = time.monotonic()
+    last_progress = start
     total_errors = 0
     next_token = None
     page_count = 0
@@ -171,11 +182,15 @@ def fetch_devices_by_model(
             device_search = inventory.get("deviceSearch", {})
 
             edges = device_search.get("edges", [])
-            page_info = device_search.get("pageInfo", {})
+            page_info = device_search.get("pageInfo", {})  # or {}
+
+            if total_count is None:
+                total_count = page_info.get("totalCount")
 
             for edge in edges:
                 node = edge.get("node", {})
-                pretty_node_deets(node, pad_braces=True)
+                if debug_nodes or (sample_nodes and len(all_devices) < sample_nodes):
+                    pretty_node_deets(node, pad_braces=True)
                 device = {
                     "id": node.get("id"),
                     "name": node.get("name"),
@@ -188,12 +203,28 @@ def fetch_devices_by_model(
                 }
                 all_devices.append(device)
 
-            console_log(
-                f"Page {page_count}: fetched {len(edges)} devices (total: {len(all_devices)})"
-            )
-
             has_next_page = page_info.get("hasNextPage", False)
             next_token = page_info.get("nextToken")
+
+            if progress:
+                now = time.monotonic()
+                done = not (has_next_page and next_token)
+                if done or (now - last_progress) >= progress_interval_s:
+                    processed = len(all_devices)
+                    elapsed = max(now - start, 0.001)
+                    rate = processed / elapsed
+
+                    if total_count:
+                        pct = processed / total_count * 100
+                        console_log(
+                            f"  Fetched [blue]{processed:,}/{total_count:,} ({pct:.1f}%) [/blue] | "
+                            f"pages {page_count} | {rate:,.0f}/s",
+                        )
+                    else:
+                        console_log(
+                            f"  Fetched {processed:,} | pages {page_count} | {rate:,.0f}/s"
+                        )
+                    last_progress = now
 
             if not (has_next_page and next_token):
                 break
@@ -204,9 +235,6 @@ def fetch_devices_by_model(
             )
             break
 
-    console_log(
-        f"[green]Fetched [bold]{len(all_devices)}[/bold][/green] total {log_prefix}"
-    )
     return all_devices
 
 
@@ -220,7 +248,7 @@ def fetch_latest_software_version(catalog_id: str) -> Optional[str]:
 
         if "errors" in data:
             console_log(
-                f"[red]GraphQL errors fetching latest GA version for {catalog_id}:[/red] {data['errors']}"
+                f"[red]GraphQL errors fetching latest GA software version for {catalog_id}:[/red] {data['errors']}"
             )
 
         hardware_product = data.get("data", {}).get("hardwareProduct", {})
@@ -235,7 +263,7 @@ def fetch_latest_software_version(catalog_id: str) -> Optional[str]:
 
     except requests.RequestException as err:
         console_log(
-            f"[red]Error fetching latest GA version for {catalog_id}:[/red] {err}"
+            f"[red]Error fetching latest GA software version for {catalog_id}:[/red] {err}"
         )
         return None
 
@@ -243,7 +271,7 @@ def fetch_latest_software_version(catalog_id: str) -> Optional[str]:
 def fetch_multiple_latest_versions(
     catalog_ids: List[str], labels: Dict[str, str] | None = None
 ) -> Dict[str, Optional[str]]:
-    console_log("[green]Fetching latest GA versions...[/green]")
+    console_log("[bold]Fetching latest GA software versions...[/bold]")
 
     labels = labels or {}
     latest_versions = {}
@@ -255,11 +283,10 @@ def fetch_multiple_latest_versions(
         label = labels.get(catalog_id, catalog_id)
 
         if version:
-            console_log(f" [cyan]{label}:[/cyan] v{version}")
+            console_log(f"  [cyan]{label}:[/cyan] v{version}")
         else:
-            console_log(f" [yellow]{label}: Unable to fetch[/yellow]")
+            console_log(f"  [yellow]{label}: Unable to fetch[/yellow]")
 
-    console_log(f"Fetched latest GA versions")
     return latest_versions
 
 

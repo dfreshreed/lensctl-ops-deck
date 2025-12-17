@@ -107,19 +107,16 @@ def _tasks(selected: int | None = None):
         ("Exit", "Close the application"),
         (
             f"Export Lens Rooms [bold cyan]>>[/bold cyan] CSV",
-            "Export all room metadata to a CSV file"
+            "Export all room metadata to a CSV file",
         ),
         (
             "Update Lens Rooms [bold cyan]<<[/bold cyan] CSV",
-            "Update room metadata from a CSV file"
+            "Update room metadata from a CSV file",
         ),
-        (
-            "Create Rooms (bulk)",
-            "Create multiple rooms with auto-numbered names"
-        ),
+        ("Create Rooms (bulk)", "Create multiple rooms with auto generated names"),
         (
             "Export Lens Desktop Policy Compliance",
-            "Analyze device compliance against policy baseline"
+            "Analyze device compliance against policy baseline",
         ),
     ]
 

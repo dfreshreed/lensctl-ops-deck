@@ -275,10 +275,10 @@ def update_rooms():
             "floor": floor_value,
             "siteId": site_id_value,
         }
-        # ---trim name whitespace and ensure no empty string---
+        # trim name whitespace and ensure no empty string
         if pd.notna(raw_name) and str(raw_name).strip():
             room_fields["name"] = str(raw_name).strip()
-        # ---build the update room payload structure---
+        # build the update room payload structure
 
         pretty_node_deets(
             room_fields, label=f"Sending row {index} to Lens API", pad_braces=True
@@ -286,7 +286,7 @@ def update_rooms():
         payload = {"query": UPDATE_ROOMS, "variables": {"fields": room_fields}}
 
         try:
-            # ---fire off the request and assign the response to a variable for error handling---
+            # fire off the request and assign the response to a variable for error handling
             response = requests.post(
                 auth.GRAPHQL_URL, json=payload, headers=auth.get_headers()
             )
@@ -296,16 +296,16 @@ def update_rooms():
                 json.dumps(data, indent=2), JsonLexer(), TerminalFormatter()
             )
             if "errors" in data:
-                # ---log GQL errors---
+                # log GQL errors
                 gql_error = f"GraphQL error at row {index}: \n{highlighted}"
                 logger.error(gql_error)
                 all_errors.append(gql_error)
                 total_errors += 1
             else:
-                # ---log successful GQL response---
+                # log successful GQL response
                 logger.info(f"Row {index} updated. API response: \n{highlighted}")
                 total_rooms_imported += 1
-        # ---log network or HTTP errors---
+        # log network or HTTP errors
         except requests.RequestException as err:
             http_err = f"Request error at row {index}: {err}"
             logger.error(http_err)
