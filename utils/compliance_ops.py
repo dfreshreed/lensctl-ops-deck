@@ -221,7 +221,9 @@ def extract_unique_policies(devices: List[Dict]) -> Dict[str, List[Dict]]:
     policies_by_type = {"model": {}, "site": {}, "user_group": {}, "device": {}}
 
     for device in devices:
-        attribution = device.get("policy_attribution", {})
+        attribution = device.get("policy_attribution")
+        if not attribution:
+            continue
         all_layers = attribution.get("all_layers", [])
 
         for layer in all_layers:
@@ -256,19 +258,33 @@ def prompt_compliance_target(
     """
 
     console.print()
+    console.print("[dim]─[/dim]" * 100)
     console.print(
         "[bold cyan]Select Policy Compliance Measurement Baseline[/bold cyan]"
     )
-    console.print("[dim]─[/dim]" * 100)
     console.print()
     console.print(
-        "[white]Choose which policy layer to measure compliance against:[/white]\n"
-        "  [dim]• Each device will be compared to the software version specified in your selected baseline.[/dim]\n"
-        "  [dim]• Results show which devices match ([green]compliant[/green]) or differ ([yellow]non-compliant[/yellow]) from that baseline.[/dim]\n"
-        "  [dim]• Compliance summary displays below. Full per-device details export to [cyan]lens-desktop-compliance.csv[/cyan][/dim]\n"
+        "[bold]What's Measured:[/bold]\n"
+        "  Compliance → correct version AND controlled by the baseline policy you select\n"
         "\n"
-        "  [dim]• Example: If you're using Account Model Policy to specify a version and want to know how many devices are compliant, select option 1.[/dim]"
+        "[bold]Status Indicators:[/bold]\n"
+        "  [green]✓ Compliant[/green] → version matches baseline and baseline policy controls the device\n"
+        "  [yellow]⚠ Policy Override[/yellow] → version matches baseline [bold]BUT[/bold] a different policy controls the device \n"
+        "  [red]✗ Non-Compliant[/red] → device version doesn't match baseline \n"
+        "\n"
+        "[bold]CLI Report Includes:[/bold]\n"
+        "  Summary: Overall Compliance % and device breakdown by controlling policy\n"
+        "  Tables: Devices grouped by controlling policy\n"
+        "  CSV Export: Full per-device details → [cyan]lens-desktop-compliance.csv[/cyan]\n"
+        "\n"
+        "[blue]Example:[/blue]\n"
+        "  - Baseline = Account Model Policy (expects 2.3.0)\n"
+        "  - Device on 2.3.0 controlled by Account Model → [green]✓ Compliant[/green] [dim](correct version and policy controlling)[/dim]\n"
+        "  - Device on 2.3.0 controlled by Site Policy → [yellow]⚠ Policy Override[/yellow] [dim](correct version but wrong policy controlling)[/dim]\n"
+        "  - Device on 2.2.0 controlled by Account Model → [red]✗ Non-Compliant[/red] [dim](wrong version but correct policy controlling)[/dim]\n"
+        "  - Device on 2.2.0 controlled by Site Policy → [red]✗ Non-Compliant[/red] [dim](wrong version and wrong policy controlling)[/dim]\n"
     )
+    console.print()
     console.print("[dim]─[/dim]" * 100)
     console.print()
 
@@ -430,7 +446,7 @@ def _get_baseline_version_for_device(
     baseline_layer = compliance_baseline.get("layer")
 
     if compliance_baseline.get("all_policies"):
-        attribution = device.get("policy_attribution", {})
+        attribution = device.get("policy_attribution") or {}
         all_layers = attribution.get("all_layers", [])
 
         matching_layer = None
@@ -448,7 +464,7 @@ def _get_baseline_version_for_device(
     baseline_policy_id = baseline_policy.get("id")
 
     # find this policy in the device's stack
-    attribution = device.get("policy_attribution", {})
+    attribution = device.get("policy_attribution") or {}
     all_layers = attribution.get("all_layers", [])
 
     matching_layer = None
@@ -719,11 +735,17 @@ def analyze_and_group_devices(
             software_version == expected_version if expected_version else False
         )
 
-        is_compliant_with_baseline = (
-            software_version == baseline_expected_version
-            if baseline_expected_version and baseline_expected_version != "N/A"
-            else False
-        )
+        # Compliance requires BOTH version match AND correct policy source
+        is_compliant_with_baseline = False
+        if baseline_expected_version and baseline_expected_version != "N/A":
+            version_matches = software_version == baseline_expected_version
+
+            # Check if version is coming from the correct policy layer
+            baseline_layer = compliance_baseline.get("layer")
+            policy_source_matches = controlling_type == baseline_layer
+
+            # Both must be true for compliance
+            is_compliant_with_baseline = version_matches and policy_source_matches
 
         # create group key
         group_key = (
@@ -760,7 +782,31 @@ def analyze_and_group_devices(
             groups[group_key]["compliant_with_baseline_count"] += 1
         groups[group_key]["devices"].append(device)
 
-        # calc %s
+    compliance_by_layer = {
+        "device": {"total": 0, "compliant": 0, "version_match": 0},
+        "user_group": {"total": 0, "compliant": 0, "version_match": 0},
+        "site": {"total": 0, "compliant": 0, "version_match": 0},
+        "model": {"total": 0, "compliant": 0, "version_match": 0},
+    }
+
+    for group in groups.values():
+        layer_type = group["controlling_type"]
+        count = group["count"]
+        compliant_count = group["compliant_with_baseline_count"]
+
+        baseline_expected = group["baseline_expected_version"]
+        device_version = group["device_version"]
+        version_matches = (
+            device_version == baseline_expected
+        ) and baseline_expected != "N/A"
+        version_match_count = count if version_matches else 0
+
+        if layer_type in compliance_by_layer:
+            compliance_by_layer[layer_type]["total"] += count
+            compliance_by_layer[layer_type]["compliant"] += compliant_count
+            compliance_by_layer[layer_type]["version_match"] += version_match_count
+
+    # calc %s
     for group in groups.values():
         platform = group["platform"]
         total_for_platform = platform_totals.get(platform, 1)
@@ -776,6 +822,7 @@ def analyze_and_group_devices(
         "total_devices": len(devices),
         "total_compliant_with_baseline": total_compliant_with_baseline,
         "compliance_baseline": compliance_baseline,
+        "compliance_by_layer": compliance_by_layer,
     }
 
 
@@ -784,8 +831,149 @@ def analyze_and_group_devices(
 # ---------------------------------
 
 
+def _get_expected_versions_display(
+    groups: List[Dict[str, Any]],
+    grouping_id: str,
+    latest_versions: Dict[str, str | None],
+) -> str:
+    """
+    Get display string showing expected versions for THIS policy.
+    Shows ALL platforms this policy defines, even if no devices exist on that platform.
+
+    Args:
+        groups: List of group dicts from analysis
+        grouping_id: The policy ID to get versions for
+        latest_versions: Dict mapping catalog_ids to latest GA versions
+
+    Returns:
+        String like "Expected: Mac 2.3.1 | Win 2.1.1"
+    """
+    matching_groups = [g for g in groups if g["grouping_id"] == grouping_id]
+
+    if not matching_groups:
+        return "Expected: Unknown"
+
+    # Find a device with valid policy attribution to read policy settings from
+    # Search through all groups since some groups may have devices with failed policy fetches
+    reference_device = None
+    grouping_type = matching_groups[0]["grouping_type"]
+
+    for group in matching_groups:
+        for device in group.get("devices", []):
+            attribution = device.get("policy_attribution")
+            if attribution:
+                # Check if this device has the policy layer we need
+                all_layers = attribution.get("all_layers", [])
+                for layer in all_layers:
+                    if (
+                        layer.get("id") == grouping_id
+                        and layer.get("type") == grouping_type
+                    ):
+                        reference_device = device
+                        break
+                if reference_device:
+                    break
+        if reference_device:
+            break
+
+    # If no device has valid attribution, fallback to group-level data
+    if not reference_device:
+        all_platform_versions = {}
+        for group in matching_groups:
+            platform_short = group["platform"].replace("Lens Desktop ", "")
+            expected = group["controlling_expected_version"]
+            if expected and expected != "N/A" and expected != "Unknown":
+                all_platform_versions[platform_short] = expected
+
+        if all_platform_versions:
+            parts = [
+                f"{platform} {version}"
+                for platform, version in sorted(all_platform_versions.items())
+            ]
+            return "Expected: " + " | ".join(parts)
+        return "Expected: N/A"
+
+    # Access the policy settings from the reference device's attribution
+    # IMPORTANT: Use the layer matching grouping_id, NOT controlling_layer
+    # (because device may have an override policy controlling it)
+    attribution = reference_device.get("policy_attribution") or {}
+    all_layers = attribution.get("all_layers", [])
+
+    # Find the specific layer for this grouping_id
+    matching_layer = None
+    for layer in all_layers:
+        if layer.get("id") == grouping_id and layer.get("type") == grouping_type:
+            matching_layer = layer
+            break
+
+    if not matching_layer:
+        return "Expected: Unknown"
+
+    settings = matching_layer.get("settings")
+    if not settings:
+        return "Expected: Unknown"
+
+    all_platform_versions = {}
+
+    # Check if policy has platform-specific variations
+    if settings.get("has_variations"):
+        variations = settings.get("variations", [])
+
+        for variation in variations:
+            # Get catalog_id from property_value
+            catalog_id = variation.get("property_value", {}).get("value")
+
+            # Determine platform name from catalog_id
+            if catalog_id == "lens-desktop-mac":
+                platform_short = "Mac"
+            elif catalog_id == "lens-desktop-windows":
+                platform_short = "Windows"
+            else:
+                continue
+
+            # Check if use_latest or specific version
+            use_latest_obj = variation.get("use_latest")
+            if use_latest_obj and use_latest_obj.get("value"):
+                version = latest_versions.get(catalog_id, "Unknown")
+            else:
+                version_obj = variation.get("version")
+                version = (
+                    version_obj.get("value", "Unknown") if version_obj else "Unknown"
+                )
+
+            all_platform_versions[platform_short] = _normalize_version(version)
+    else:
+        # Simple policy without variations - applies same version to all platforms
+        use_latest = settings.get("use_latest")
+        if use_latest:
+            # Apply to both platforms
+            for catalog_id, platform_name in [
+                ("lens-desktop-mac", "Mac"),
+                ("lens-desktop-windows", "Windows"),
+            ]:
+                version = latest_versions.get(catalog_id, "Unknown")
+                all_platform_versions[platform_name] = _normalize_version(version)
+        else:
+            version = settings.get("version", "Unknown")
+            # Single version applies to all platforms
+            for platform_name in ["Mac", "Windows"]:
+                all_platform_versions[platform_name] = _normalize_version(version)
+
+    if not all_platform_versions:
+        return "Expected: N/A"
+
+    # Always show versions by platform
+    parts = [
+        f"{platform} {version}"
+        for platform, version in sorted(all_platform_versions.items())
+    ]
+    return "Expected: " + " | ".join(parts)
+
+
 def display_aggregated_compliance_report(
-    analysis: Dict[str, Any], compliance_baseline: Dict[str, Any]
+    analysis: Dict[str, Any],
+    compliance_baseline: Dict[str, Any],
+    latest_versions: Dict[str, str | None],
 ):
     """
     display aggregated compliance report grouped by controlling policy
@@ -794,7 +982,7 @@ def display_aggregated_compliance_report(
 
     # console.print()
 
-    groups = analysis["groups"]
+    groups: List[Dict[str, Any]] = analysis.get("groups", [])
     platform_totals = analysis["platform_totals"]
     total_devices = analysis["total_devices"]
 
@@ -805,17 +993,106 @@ def display_aggregated_compliance_report(
     compliance_pct = (total_compliant / total_devices * 100) if total_devices > 0 else 0
 
     summary = Text()
-    summary.append("Total Devices: ", style="bold cyan")
+    summary.append("Total Devices: ", style="cyan")
     summary.append(f"{total_devices:,}\n", style="bold white")
 
-    summary.append("Baseline Compliance: ", style="bold cyan")
-    compliance_color = (
-        "green" if compliance_pct >= 90 else "yellow" if compliance_pct >= 75 else "red"
-    )
+    summary.append("Baseline: ", style="cyan")
+    summary.append(f"{compliance_baseline.get('display', 'Unknown')}\n", style="white")
+
+    summary.append("Overall Compliance: ", style="cyan")
     summary.append(
-        f"{compliance_pct:.1f}% ({total_compliant:,}/{total_devices:,})",
-        style=f"bold {compliance_color}",
+        f"{compliance_pct:.1f}% ({total_compliant:,}/{total_devices:,})\n\n",
+        style="bold white",
     )
+
+    summary.append("Devices by Controlling Policy Layer:\n", style="cyan")
+
+    compliance_by_layer = analysis.get("compliance_by_layer", {})
+    baseline_layer = compliance_baseline.get("layer")
+
+    baseline_expected_version = "Unknown"
+    for group in analysis["groups"]:
+        if group["grouping_type"] == baseline_layer:
+            baseline_expected_version = group["baseline_expected_version"]
+            break
+
+    layer_order = ["device", "user_group", "site", "model"]
+    layer_labels = {
+        "device": "Device Policy",
+        "user_group": "User Group Policy",
+        "site": "Site Policy",
+        "model": "Account Model",
+    }
+
+    for layer in layer_order:
+        layer_data = compliance_by_layer.get(layer, {"total": 0, "compliant": 0})
+        total = layer_data["total"]
+        compliant = layer_data["compliant"]
+        version_match = layer_data["version_match"]
+
+        if total == 0:
+            continue
+
+        is_baseline = layer == baseline_layer
+        label = layer_labels.get(layer, layer.title())
+
+        # Icon and style based on baseline vs override
+        if is_baseline:
+            non_compliant = total - compliant
+            summary.append(f" ", style="")
+            summary.append(f"{compliant:,}", style="green")
+            summary.append(" ✓", style="bold green")
+            summary.append(" / ", style="white")
+            summary.append(f"{non_compliant:,}", style="red")
+            summary.append(" ✗", style="bold red")
+            summary.append(f" ({total:,} {label})", style="white")
+            summary.append(" [Baseline]\n", style="dim")
+        else:
+            non_version_match = total - version_match
+            summary.append(f" ", style="")
+            summary.append(f"{version_match:,}", style="yellow")
+            summary.append(" ⚠", style="bold yellow")
+            summary.append(" / ", style="white")
+            summary.append(f"{non_version_match:,}", style="red")
+            summary.append(" ✗", style="bold red")
+            summary.append(f" ({total:,} {label})", style="white")
+            summary.append(" [Override]\n", style="dim")
+
+    platform_table = Table(
+        show_header=True, header_style="dim", box=None, padding=(0, 1)
+    )
+    platform_table.add_column("Platform", style="white", no_wrap=True, justify="left")
+    platform_table.add_column("Devices", style="cyan", justify="right")
+
+    for platform, count in sorted(platform_totals.items()):
+        platform_short = platform.replace("Lens Desktop", "")
+        platform_table.add_row(platform_short, f"{count:,}")
+
+    color_key = Text()
+    color_key.append("Status Legend:\n", style="bold cyan")
+
+    color_key.append(" ✓", style="bold green")
+    color_key.append(" Compliant\n", style="white")
+    color_key.append(" Correct version from baseline\n", style="dim")
+    # color_key.append(" from baseline\n\n", style="dim")
+
+    color_key.append(" ⚠", style="bold yellow")
+    color_key.append(" Policy Override\n", style="white")
+    color_key.append(
+        " Correct version BUT controlled by override policy\n", style="dim"
+    )
+    # color_key.append(" wrong source\n\n", style="dim")
+
+    color_key.append(" ✗", style="bold red")
+    color_key.append(" Non-Compliant\n", style="white")
+    color_key.append(" Wrong version", style="dim")
+
+    # use Table.grid for better column spacing control
+    summary_grid = Table.grid(expand=True, padding=(0, 3))
+    summary_grid.add_column(ratio=3)  # left: Summary stats
+    summary_grid.add_column(ratio=2)  # middle: Platform distribution
+    summary_grid.add_column(ratio=2)  # right: Color legend
+    summary_grid.add_row(summary, color_key, Align.center(platform_table))
 
     baseline_layer = compliance_baseline.get("layer")
     if baseline_layer in ["site", "user_group"]:
@@ -832,45 +1109,35 @@ def display_aggregated_compliance_report(
                 match = re.search(r"Group\(([^)]+)\)", policy_name)
                 clean_name = match.group(1) if match else policy_name
 
-        title = f"[bold]Lens Desktop Compliance Summary - {clean_name}[/bold]"
+        title = f"Lens Desktop Compliance Summary - [bold]{clean_name}[/bold]"
     else:
-        title = f"[bold]Lens Desktop Compliance Summary[/bold]"
+        title = f"Lens Desktop Compliance Summary"
 
     summary_panel = Panel(
-        summary,
-        title=title,
-        border_style="cyan",
+        summary_grid, title=title, border_style="cyan", padding=(1, 2)
     )
 
-    # platform breakdown summary
-
-    platform_summary = Table(show_header=True, header_style="bold magenta")
-    platform_summary.add_column("Platform", style="cyan", width=20)
-    platform_summary.add_column("Total Devices", style="white", justify="right")
-
-    for platform, count in sorted(platform_totals.items()):
-        platform_summary.add_row(platform, f"{count:,}")
-
-    platform_panel = Panel(
-        Align.center(platform_summary),
-        title="Platform Distribution",
-        border_style="cyan",
-        padding=(0, 1),
-    )
-    console.print(Columns([summary_panel, platform_panel], expand=True))
+    console.print(summary_panel)
     console.print()
 
-    # sort groups by: controlling type priority, then controlling name/id, then platform, then count desc
-    type_priority = {"device": 0, "user_group": 1, "site": 2, "model": 3}
-    sorted_groups = sorted(
-        groups,
-        key=lambda g: (
-            type_priority.get(g["grouping_type"], 99),
-            g["grouping_id"],  # group by specific policy
+    baseline_layer = compliance_baseline.get("layer")
+
+    def sort_key(g):
+        grouping_type = g["grouping_type"]
+        is_baseline = grouping_type == baseline_layer
+
+        # priority → baseline first then by policy priority
+        type_priority = {"device": 0, "user_group": 1, "site": 2, "model": 3}
+
+        return (
+            0 if is_baseline else 1,
+            type_priority.get(grouping_type, 99),
+            g["grouping_id"],
             g["platform"],
-            -g["count"],  # desc
-        ),
-    )
+            -g["count"],
+        )
+
+    sorted_groups = sorted(groups, key=sort_key)
 
     # group by policy for section-based display
     if compliance_baseline.get("all_policies"):
@@ -891,6 +1158,7 @@ def display_aggregated_compliance_report(
     current_table = None
     current_platform = None
     header_text = ""
+    show_controlling_column = False
 
     for group in sorted_groups:
         grouping_type = group["grouping_type"]
@@ -927,7 +1195,7 @@ def display_aggregated_compliance_report(
                 policy_panel = Panel(
                     Align.center(current_table),
                     title=header_text if header_text else "",
-                    border_style="magenta",
+                    border_style="dim",
                     padding=(0, 1),
                 )
                 console.print(policy_panel)
@@ -944,13 +1212,16 @@ def display_aggregated_compliance_report(
                 grouping_type, f"▶ {grouping_type.upper()}"
             )
 
-            # header text with policy name (version shown in table column)
-            header_text = f"[cyan]{header_prefix}:[/cyan] [bold]{policy_display}[bold]"
+            # Get expected versions for this policy
+            expected_versions_text = _get_expected_versions_display(
+                groups, grouping_id, latest_versions
+            )
+
+            # header text with policy name and expected versions
+            header_text = f"[cyan]{header_prefix}:[/cyan] [bold]{policy_display}[/bold] [dim]|[/dim] [magenta]{expected_versions_text}[/magenta]"
 
             # create new table for this policy
-            current_table = Table(
-                show_header=True, header_style="bold magenta", padding=(0, 0)
-            )
+            current_table = Table(show_header=True, header_style="bold", padding=(0, 0))
             current_table.add_column(
                 "Platform", style="white", width=22, justify="center", no_wrap=True
             )
@@ -961,18 +1232,25 @@ def display_aggregated_compliance_report(
                 "Device SW Ver.", style="cyan", justify="center", width=16
             )
             current_table.add_column(
-                f"{policy_display} Policy SW Ver.",
-                style="magenta",
-                width=16,
-                justify="center",
+                "% Platform", style="white", justify="center", width=12
             )
-            current_table.add_column(
-                "Controlling Policy", style="dim", justify="center", width=24
-            )
-            current_table.add_column(
-                "% Platform", style="white", justify="center", width=16
-            )
-            current_table.add_column("Status", style="white", justify="center", width=8)
+
+            # only show controlling policy column when:
+            # 1. baseline is site or user_group
+            # 2. at least one device in this policy section has a policy override
+            show_controlling_column = False
+            if baseline_layer in ["site", "user_group"]:
+                # look ahead to see if any devices in this policy section have overrides
+                for g in sorted_groups:
+                    if g["grouping_id"] == grouping_id:
+                        if g["controlling_type"] != baseline_layer:
+                            show_controlling_column = True
+                            break
+
+            if show_controlling_column:
+                current_table.add_column(
+                    "Controlling Policy", style="dim", justify="center", width=28
+                )
 
             current_policy_id = grouping_id
             current_platform = None
@@ -982,60 +1260,67 @@ def display_aggregated_compliance_report(
             platform_short = platform.replace("Lens Desktop", "")
 
             # platform header row - name in col 1 rest empty
-            current_table.add_row(
-                f"[bold blue]{platform_short}[/bold blue]",
-                "",
-                "",
-                "",
-                "",
-                "",
-                "",
-            )
+            if show_controlling_column:
+                current_table.add_row(
+                    f"[reverse bold blue]{platform_short }[/reverse bold blue]",
+                    "",
+                    "",
+                    "",
+                    "",
+                )
+            else:
+                current_table.add_row(
+                    f"[reverse bold blue]{platform_short }[/reverse bold blue]",
+                    "",
+                    "",
+                    "",
+                )
             current_platform = platform
 
         # add row to current table
-        device_matches_controlling = device_version == controlling_expected
-        controlling_display = controlling_expected if controlling_expected else "N/A"
-        if device_matches_controlling and controlling_expected:
-            controlling_display += " ✓"
-
+        baseline_layer = compliance_baseline.get("layer")
         is_group_compliant_with_baseline = compliant_with_baseline == count
-        status_display = (
-            "[green]✓[/green]" if is_group_compliant_with_baseline else "[red]x[/red]"
-        )
 
-        # color-code device version based on baseline compliance
-        device_version_display = (
-            f"[green]{device_version}[/green]"
-            if is_group_compliant_with_baseline
-            else f"[yellow]{device_version}[/yellow]"
-        )
+        # Determine device version color:
+        # Green = compliant (correct version AND correct policy source)
+        # Yellow = version matches but controlled by override policy
+        # Red = wrong version
+        version_matches = device_version == baseline_expected
+        policy_source_matches = controlling_type == baseline_layer
 
-        if controlling_type == grouping_type:
-            controlling_display_text = f"{grouping_type.title()} Policy"
+        if is_group_compliant_with_baseline:
+            # Green: compliant
+            device_version_display = f"[green]{device_version}[/green]"
+        elif version_matches and not policy_source_matches:
+            # Yellow: correct version but override policy
+            device_version_display = f"[yellow]{device_version}[/yellow]"
         else:
-            controlling_display_text = f"{controlling_type.title()} Policy (override)"
-
-        # Add simplified platform name for data row
-        platform_short = platform.replace("Lens Desktop ", "")
+            # Red: wrong version
+            device_version_display = f"[red]{device_version}[/red]"
 
         if current_table is not None:
-            current_table.add_row(
-                "",
-                f"{count:,}",
-                device_version_display,
-                baseline_expected,
-                controlling_display_text,
-                f"{pct_platform:.1f}%",
-                status_display,
-            )
+            if show_controlling_column:
+                current_table.add_row(
+                    "",
+                    f"{count:,}",
+                    device_version_display,
+                    f"{pct_platform:.1f}%",
+                    f"[dim]{controlling_name}[/dim]",
+                )
+            else:
+                current_table.add_row(
+                    "",
+                    f"{count:,}",
+                    device_version_display,
+                    f"{pct_platform:.1f}%",
+                )
 
     # print final table
     if current_table is not None:
         policy_panel = Panel(
             Align.center(current_table),
             title=header_text,
-            border_style="magenta",
+            border_style="dim",
             padding=(0, 1),
         )
         console.print(policy_panel)
@@ -1043,15 +1328,9 @@ def display_aggregated_compliance_report(
     console.print(
         "[dim]═══════════════════════════════════════════════════════════════[/dim]"
     )
-    console.print(
-        "[dim]Policy Interitance Priority: Device (highest) → User Group → Site → Account (lowest)[/dim]"
-    )
-    console.print(
-        "[dim]═══════════════════════════════════════════════════════════════[/dim]"
-    )
     console.print()
     console.print(
-        "[dim]Note: Aggregated view showing device distribution. Full details exported to CSV.[/dim]"
+        "[dim yellow]Note:[/dim yellow][dim] Aggregated view showing device distribution. Full details exported to CSV.[/dim]"
     )
     console.print()
 
@@ -1122,11 +1401,21 @@ def export_compliance_csv_full_details(
                 if expected_version
                 else False
             )
-            is_compliant_with_baseline = (
-                software_version_normalized == baseline_version_normalized
-                if baseline_version_normalized and baseline_version_normalized != "N/A"
-                else False
-            )
+
+            # Compliance requires BOTH version match AND correct policy source
+            is_compliant_with_baseline = False
+            if baseline_version_normalized and baseline_version_normalized != "N/A":
+                version_matches = (
+                    software_version_normalized == baseline_version_normalized
+                )
+
+                # Check if version is coming from the correct policy layer
+                baseline_layer = compliance_baseline.get("layer")
+                policy_source_matches = controlling_type == baseline_layer
+
+                # Both must be true for compliance
+                is_compliant_with_baseline = version_matches and policy_source_matches
+
             baseline_display = compliance_baseline.get("display", "Unknown")
 
             policy_stack_summary = []
@@ -1187,7 +1476,7 @@ def export_compliance_csv_full_details(
                 "Compliant with Baseline": (
                     "Yes" if is_compliant_with_baseline else "No"
                 ),
-                "Policy Stack": policy_stack_str,
+                "Policy Stack = Device (highest) > Device User Group > Site > Account Model (lowest)": f"{policy_stack_str}",
             }
 
             if writer is None:
@@ -1216,13 +1505,13 @@ def fetch_policy_attributions_concurrent(
 ) -> tuple[int, int]:
     """Fetch policy attribution for all devices using concurrent requests.
 
-    This dramatically speeds up processing by making multiple API calls in parallel
+    Significantly speeds up processing by making multiple API calls in parallel
     instead of waiting for each one sequentially.
 
     Args:
         devices: List of device dicts to enrich with policy_attribution
         max_workers: Number of concurrent threads (default: 10)
-                    Start conservative, increase if no rate limiting
+                     Conservative start, increase if no rate limiting
 
     Returns:
         (successful_count, failed_count)
@@ -1237,8 +1526,8 @@ def fetch_policy_attributions_concurrent(
     failed = 0
 
     console_log(
-        f"[bold]Fetching policy attribution for {total:,} devices "
-        f"(using {max_workers} concurrent workers)...[/bold]"
+        f"[bold]Fetching policy attribution for [blue]{total:,}[/blue] devices "
+        f"(using [blue]{max_workers}[/blue] concurrent workers)...[/bold]"
     )
     start_time = time.time()
     # ThreadPoolExectuor manages a pool of worker threads
@@ -1256,42 +1545,48 @@ def fetch_policy_attributions_concurrent(
         # as_completed() populates futures as they finish (not in submission order)
         # results avail as soon as ready instead of waiting for all
 
-        for future in as_completed(future_to_device):
-            device = future_to_device[future]
-            device_name = device.get("name", device.get("id", "Unknown"))
+        try:
+            for future in as_completed(future_to_device):
+                device = future_to_device[future]
+                device_name = device.get("name", device.get("id", "Unknown"))
 
-            try:
-                policy_stack = future.result(timeout=30)
-                attribution = parse_policy_attribution(policy_stack)
-                device["policy_attribution"] = attribution
-                completed += 1
+                try:
+                    policy_stack = future.result(timeout=30)
+                    attribution = parse_policy_attribution(policy_stack)
+                    device["policy_attribution"] = attribution
+                    completed += 1
 
-            except TimeoutError:
-                console_log(
-                    f"[red]Timeout (30s) fetching policy for {device_name}[/red]"
-                )
-                device["policy_attribution"] = None
-                failed += 1
+                except TimeoutError:
+                    console_log(
+                        f"[red]Timeout (30s) fetching policy for {device_name}[/red]"
+                    )
+                    device["policy_attribution"] = None
+                    failed += 1
 
-            except Exception as exc:
-                console_log(
-                    f"[red]Error fetching policy for {device_name}: {exc}[/red]"
-                )
-                device["policy_attribution"] = None
-                failed += 1
+                except Exception as exc:
+                    console_log(
+                        f"[red]Error fetching policy for {device_name}: {exc}[/red]"
+                    )
+                    device["policy_attribution"] = None
+                    failed += 1
 
-            processed = completed + failed
-            if processed % 1000 == 0 or processed == total:
-                elapsed = time.time() - start_time
-                rate = processed / elapsed if elapsed > 0 else 0
-                remaining_secs = (total - processed) / rate if rate > 0 else 0
+                processed = completed + failed
+                if processed % 1000 == 0 or processed == total:
+                    elapsed = time.time() - start_time
+                    rate = processed / elapsed if elapsed > 0 else 0
+                    remaining_secs = (total - processed) / rate if rate > 0 else 0
 
-                console_log(
-                    f"Progress: {processed:,}/{total:,} ({processed/total*100:.1f}%) | "
-                    f"✓ {completed:,} | ✗ {failed} | "
-                    f"Rate: {rate:.1f}/sec | "
-                    f"ETA: {remaining_secs/60:.1f} min"
-                )
+                    console_log(
+                        f"Progress: [blue]{processed:,}/{total:,} ({processed/total*100:.1f}%)[/blue] | "
+                        f"[green]✓[/green] {completed:,} | [red]✗[/red] {failed} | "
+                        f"Rate: [magenta]{rate:.1f}/sec[/magenta] | "
+                        f"ETA: [bold]{remaining_secs/60:.1f} min[/bold]"
+                    )
+        except KeyboardInterrupt:
+            console_log("\n[yellow]User cancelled policy fetching[/yellow]")
+            console_log(
+                f"  Processed {completed + failed:,} of {total:,} devices before cancellation"
+            )
     elapsed = time.time() - start_time
     console_log(
         f"[green]Completed in {elapsed/60:.1f} minutes ({elapsed:.1f} seconds) [/green]"
@@ -1367,10 +1662,10 @@ def check_compliance():
     # loop to allow user to change baseline selection
     while True:
         compliance_baseline = prompt_compliance_target(unique_policies)
+        console.print()
 
         if not compliance_baseline:
-            console_log("[yellow]No compliance baseline selected[/yellow]")
-            menu_return()
+            console_log("[yellow]Returning to main menu[/yellow]\n")
             return
         console.print()
 
@@ -1396,7 +1691,7 @@ def check_compliance():
         console.print(
             Panel(
                 Text.from_markup(
-                    f"[cyan]Compliance Baseline: [/cyan] [bold]{baseline_display}[/bold]\n"
+                    f"[cyan]Compliance Baseline:[/cyan][bold] {baseline_display}[/bold]\n"
                     f"{device_msg}"
                 ),
                 title="[yellow]Confirm Analysis[/yellow]",
@@ -1406,22 +1701,24 @@ def check_compliance():
         console.print()
 
         confirm = ask_str(
-            "Proceed with analysis? (y=yes, n=change baseline, q=cancel)",
+            "Proceed with analysis?",
             default="y",
+            explain="y=yes, n=change baseline, q=cancel & exit",
         ).lower()
+        console.print()
 
         if confirm in ["y", "yes", ""]:
-            console.print()
             break
         elif confirm in ["n", "no"]:
-            console.print()
             continue
         elif confirm in ["q", "quit"]:
             console_log("[yellow]Compliance check cancelled[/yellow]")
-            menu_return()
             return
         else:
-            console_log("[red]Invalid choice. Please enter y, n, or q[/red]")
+            console.print()
+            console_log(
+                "[red]Invalid choice.[bold] Please enter y, n, or q[/bold][/red]"
+            )
             console.print()
             continue
 
@@ -1446,7 +1743,7 @@ def check_compliance():
     console.print()
 
     # step 6: display aggregated report
-    display_aggregated_compliance_report(analysis, compliance_baseline)
+    display_aggregated_compliance_report(analysis, compliance_baseline, latest_versions)
 
     # step 7: export full CSV
     export_compliance_csv_full_details(

@@ -23,7 +23,7 @@ def ask_int(
     )
 
     while True:
-        raw = input_prompt(f"{label} [muted]{hint}[/muted] > ", uppercase=False)
+        raw = input_prompt(f"{label} [[muted]{hint}[/muted]] > ", uppercase=False)
         if raw == "":
             return default
         try:
@@ -45,8 +45,11 @@ def ask_str(
     allow_empty: bool = True,
     explain: str = "defaults to",
 ) -> str:
-    hint = f"{explain} {default}" if default else "optional"
-    raw = input_prompt(f"{label} [muted]{hint}[/muted] > ", uppercase=False)
+    if explain == "defaults to":
+        hint = f"{explain} {default}" if default else "optional"
+    else:
+        hint = explain
+    raw = input_prompt(f"{label} [[muted]{hint}[/muted]] > ", uppercase=False)
     if raw == "":
         return default if allow_empty else ""
     return raw

@@ -166,6 +166,7 @@ def main():
         )
 
         choice = input_prompt("Enter task selection [0,1,2,3,4] > ")
+        console.print()
         if choice == panels.SECRET_CODE:
             toggle_dark_mode()
             continue

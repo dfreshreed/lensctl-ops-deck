@@ -50,6 +50,7 @@ HARDWARE_PRODUCT = """
           node {
             version
             publishDate
+            releaseChannel
           }
         }
       }
@@ -217,12 +218,12 @@ def fetch_devices_by_model(
                     if total_count:
                         pct = processed / total_count * 100
                         console_log(
-                            f"  Fetched [blue]{processed:,}/{total_count:,} ({pct:.1f}%) [/blue] | "
-                            f"pages {page_count} | {rate:,.0f}/s",
+                            f"  Fetched: [blue]{processed:,}/{total_count:,} ({pct:.1f}%) [/blue] | "
+                            f"Pages: [blue]{page_count}[/blue] | {rate:,.0f}/s",
                         )
                     else:
                         console_log(
-                            f"  Fetched {processed:,} | pages {page_count} | {rate:,.0f}/s"
+                            f"  Fetched {processed:,} | Pages [blue]{page_count}[/blue] | {rate:,.0f}/s"
                         )
                     last_progress = now
 
@@ -238,34 +239,56 @@ def fetch_devices_by_model(
     return all_devices
 
 
-def fetch_latest_software_version(catalog_id: str) -> Optional[str]:
+def fetch_latest_software_version(
+    catalog_id: str,
+) -> tuple[Optional[str], Optional[str]]:
+
     variables = {
         "hardwareProductId": catalog_id,
-        "params": {"sort": [{"field": "version", "direction": "DESC"}], "limit": 1},
+        "params": {"sort": [{"field": "version", "direction": "DESC"}], "limit": 10},
     }
     try:
         data = auth.execute_gql(HARDWARE_PRODUCT, variables)
 
         if "errors" in data:
+            reason = "GraphQL error"
             console_log(
                 f"[red]GraphQL errors fetching latest GA software version for {catalog_id}:[/red] {data['errors']}"
             )
+            return None, reason
 
         hardware_product = data.get("data", {}).get("hardwareProduct", {})
         edges = hardware_product.get("softwareReleases", {}).get("edges", [])
 
         if not edges:
+            reason = "No releases found"
             console_log(f"[yellow]No software release found for {catalog_id}[/yellow]")
-            return None
+            return None, reason
 
-        latest_version = edges[0].get("node", {}).get("version")
-        return latest_version
+        for edge in edges:
+            node = edge.get("node", {})
+            version = node.get("version")
+            channel = node.get("releaseChannel")
+
+            if channel not in ["preview", "beta", "marketing"]:
+                if channel is not None:
+                    console_log(
+                        f"[yellow]Warning: Unknown release channel '{channel}' for version {version}. Treating as GA. [/yellow]"
+                    )
+                return version, None
+
+        reason = "Only preview/beta releases available"
+        console_log(
+            f"[yellow]No GA release found for {catalog_id} (all are preview/beta)[/yellow]"
+        )
+        return None, reason
 
     except requests.RequestException as err:
+        reason = f"Network error: {type(err).__name__}"
         console_log(
             f"[red]Error fetching latest GA software version for {catalog_id}:[/red] {err}"
         )
-        return None
+        return None, reason
 
 
 def fetch_multiple_latest_versions(
@@ -277,7 +300,7 @@ def fetch_multiple_latest_versions(
     latest_versions = {}
 
     for catalog_id in catalog_ids:
-        version = fetch_latest_software_version(catalog_id)
+        version, error_reason = fetch_latest_software_version(catalog_id)
         latest_versions[catalog_id] = version
 
         label = labels.get(catalog_id, catalog_id)
@@ -285,7 +308,7 @@ def fetch_multiple_latest_versions(
         if version:
             console_log(f"  [cyan]{label}:[/cyan] v{version}")
         else:
-            console_log(f"  [yellow]{label}: Unable to fetch[/yellow]")
+            console_log(f"  [yellow]{label}: Unable to fetch ({error_reason})[/yellow]")
 
     return latest_versions
 
