@@ -1,4 +1,5 @@
 import json
+import time
 import requests
 import pandas as pd
 from pygments import highlight
@@ -9,7 +10,6 @@ from utils.env_helper import logger, console_log, pretty_node_deets, console, bo
 import utils.auth as auth
 from utils.site_ops import resolve_site, SiteIdNotFoundError
 
-# lens api query to lookup room data
 EXPORT_ROOMS = """
 query getRoomData($params: RoomConnectionParams) {
   tenants {
@@ -36,7 +36,6 @@ query getRoomData($params: RoomConnectionParams) {
 }
 """
 
-# lens api mutation to update room metadata
 UPDATE_ROOMS = """
 mutation updateRoomData($fields: UpsertRoomRequest!) {
   upsertRoom(fields: $fields) {
@@ -56,7 +55,6 @@ mutation updateRoomData($fields: UpsertRoomRequest!) {
 
 
 def export_rooms():
-    logger.info("Starting room export to csv")
     all_rooms = []
     total_rooms_exported = 0
     all_errors = []
@@ -64,28 +62,22 @@ def export_rooms():
     cursor = None
 
     while True:
-        payload = {
-            "query": EXPORT_ROOMS,
-            "variables": {
-                "params": {
-                    "cursor": cursor,
-                    "paging": "NEXT_PAGE",
-                    "limit": 50,
-                    "sort": [{"field": "ROOM_NAME", "direction": "ASC"}],
-                }
-            },
-        }
         try:
-            response = requests.post(
-                auth.GRAPHQL_URL, json=payload, headers=auth.get_headers()
+            data = auth.execute_gql(
+                EXPORT_ROOMS,
+                {
+                    "params": {
+                        "cursor": cursor,
+                        "paging": "NEXT_PAGE",
+                        "limit": 50,
+                        "sort": [{"field": "ROOM_NAME", "direction": "ASC"}],
+                    }
+                },
             )
-            response.raise_for_status()
         except requests.RequestException as err:
             logger.error(f"Export request failed: {err}")
-            all_errors.append(f"Request error: {err}")
-            total_errors += 1
             break
-        data = response.json()
+
         if data.get("errors"):
             logger.error(f"GraphQL error:\n{json.dumps(data['errors'], indent=2)}")
             all_errors.append(json.dumps(data["errors"], indent=2))
@@ -104,7 +96,8 @@ def export_rooms():
 
         for edge in edges:
             node = edge["node"]
-            pretty_node_deets(node, pad_braces=True)
+            console_log(f"[muted]Exported:[/muted] {node.get('name')}")
+            time.sleep(0.1)
             total_rooms_exported += 1
             all_rooms.append(
                 {
@@ -123,7 +116,7 @@ def export_rooms():
         message = Text.assemble(("Pagination: ", "white"), ("hasNextPage=", "yellow"))
         message.append_text(bool_text(has_next))
         message.append(" endCursor=", "yellow")
-        message.append(str(cursor), "magenta")
+        message.append(str(cursor), "blue")
         console_log(message)
 
         if has_next and cursor:
@@ -137,11 +130,9 @@ def export_rooms():
             columns=["name", "id", "capacity", "size", "floor", "siteName", "siteId"],
         )
         dataframe.to_csv("room_data.csv", index=False)
+        console_log("All Room Data exported to [dim]room_data.csv[/dim]")
         console_log(
-            "[blue]All Room Data exported to[/blue] [magenta]room_data.csv[/magenta]"
-        )
-        console_log(
-            "🏁 [magenta]export_rooms()[/magenta] [blue]completed with no errors[/blue]"
+            "🏁 [magenta]export_rooms()[/magenta] [green]completed with no errors[/green]"
         )
     else:
         message = Text.assemble(
@@ -151,18 +142,15 @@ def export_rooms():
             ("errors", "red"),
         )
         console_log(message)
-        # console_log(all_errors)
         console_log("[red]Details on all errors:[/red] \n" + "\n".join(all_errors))
     message = Text.assemble(
-        ("Total Rooms Exported: ", "blue"), (str(total_rooms_exported), "yellow")
+        ("Total Rooms Exported: "), (str(total_rooms_exported), "yellow")
     )
     console_log(message)
     console.input("[dim]Press Enter to return to main menu[/dim]")
     return
 
 
-# GRAPHQL Mutation: Update Rooms
-# for each row in the csv, map the data to the expected graphql argument field name, and send the request
 def update_rooms():
     total_rooms_imported = 0
     total_errors = 0
@@ -180,26 +168,35 @@ def update_rooms():
         return
     if dataframe.empty:
         console_log(
-            "[yellow]'room_data.csv' is empty → There's nothing to import [/yellow]"
+            "There's nothing to import! [yellow]'room_data.csv' is empty...[/yellow]"
         )
         console.input("[dim]Press Enter to return to main menu[/dim]")
         return
 
     # loop through each csv row
     for index, row in dataframe.iterrows():
-        row_dict = row.to_dict()
-        # row_dict = {key: (None if pd.isna(value) else value) for key, value in row_dict}
-        # log row for debugging
-        pretty_node_deets(row_dict, label=f"CSV row {index}", pad_braces=True)
+        time.sleep(0.3)
+        console.print()
+        row_dict = {}
+        for key, value in row.to_dict().items():
+            if pd.isna(value):
+                row_dict[key] = None
+            else:
+                row_dict[key] = value
 
-        # Pull each value once for finalizing types
+        pretty_node_deets(
+            row_dict, label=f"CSV row {index}", pad_braces=True, label_style="yellow"
+        )
+
         raw_id = row.get("id")
         raw_name = row.get("name")
         raw_capacity = row.get("capacity")
         raw_size = row.get("size")
         raw_floor = row.get("floor")
-        raw_site = row.get("siteId")
-        raw_site_name = row.get("siteName")
+        raw_site = str(row.get("siteId")) if pd.notna(row.get("siteId")) else None
+        raw_site_name = (
+            str(row.get("siteName")) if pd.notna(row.get("siteName")) else None
+        )
 
         message = Text.assemble(
             ("🔍 Resolving site for ", "white"),
@@ -251,7 +248,7 @@ def update_rooms():
                 f"[yellow]Warning:[/yellow] row {index} had [green]'capacity'[/green]: "
                 f"[red]'{raw_capacity}'[/red], which isn't a number. "
                 "It's been set to [blue]null[/blue] (None). "
-                "See README › CSV Format: https://github.com/dfreshreed/lens-room-trooper "
+                "See README › CSV Format: https://github.com/dfreshreed/lensctl-ops-deck "
                 "for expected types. "
                 "Fix value in [green]room_data.csv[/green] and run the import again.",
                 style="bold",
@@ -263,7 +260,7 @@ def update_rooms():
         raw_size = raw_size.upper() if pd.notna(raw_size) else DEFAULT_SIZE
         size_value = raw_size if raw_size in VALID_SIZES else DEFAULT_SIZE
 
-        # if floor is missing -> None, otherwise ensure string if floors are numbered
+        # if floor missing -> None. numbered floors are strings
         floor_value = None if pd.isna(raw_floor) else str(raw_floor).strip()
 
         # build room fields dictionary for payload
@@ -275,37 +272,35 @@ def update_rooms():
             "floor": floor_value,
             "siteId": site_id_value,
         }
-        # ---trim name whitespace and ensure no empty string---
+        # trim whitespace; validate no empty string
         if pd.notna(raw_name) and str(raw_name).strip():
             room_fields["name"] = str(raw_name).strip()
-        # ---build the update room payload structure---
 
+        # build update room payload structure
         pretty_node_deets(
-            room_fields, label=f"Sending row {index} to Lens API", pad_braces=True
+            room_fields,
+            label=f"Sending row {index}",
+            pad_braces=True,
+            label_style="muted",
         )
-        payload = {"query": UPDATE_ROOMS, "variables": {"fields": room_fields}}
 
         try:
-            # ---fire off the request and assign the response to a variable for error handling---
-            response = requests.post(
-                auth.GRAPHQL_URL, json=payload, headers=auth.get_headers()
-            )
-            response.raise_for_status()
-            data = response.json()
+            data = auth.execute_gql(UPDATE_ROOMS, {"fields": room_fields})
             highlighted = highlight(
                 json.dumps(data, indent=2), JsonLexer(), TerminalFormatter()
             )
             if "errors" in data:
-                # ---log GQL errors---
                 gql_error = f"GraphQL error at row {index}: \n{highlighted}"
                 logger.error(gql_error)
                 all_errors.append(gql_error)
                 total_errors += 1
             else:
-                # ---log successful GQL response---
-                logger.info(f"Row {index} updated. API response: \n{highlighted}")
+                console_log(
+                    f"[ok]Row {index} synced.[/ok] Updated room record (in tenant): "
+                )
+                print(highlighted, end="")
                 total_rooms_imported += 1
-        # ---log network or HTTP errors---
+        # log network or HTTP errors
         except requests.RequestException as err:
             http_err = f"Request error at row {index}: {err}"
             logger.error(http_err)
@@ -313,10 +308,10 @@ def update_rooms():
             total_errors += 1
     if not total_errors:
         console_log(
-            "[magenta]update_rooms()[/magenta] [blue]completed with no errors.[/blue]"
+            "[magenta]update_rooms()[/magenta] [ok]completed with no errors.[/ok]"
         )
         message = Text.assemble(
-            ("Total Rooms Imported: ", "blue"), (str(total_rooms_imported), "yellow")
+            ("Total Rooms Imported: "), (str(total_rooms_imported), "yellow")
         )
         console_log(message)
     else:

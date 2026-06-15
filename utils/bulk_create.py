@@ -10,7 +10,7 @@ from pygments.lexers import JsonLexer
 from utils.env_helper import logger, console_log, console
 import utils.auth as auth
 
-# -----------GLOBALS-----------
+# -- GLOBALS
 DEFAULT_ROOM = {
     "capacity": None,
     "size": "NONE",
@@ -37,13 +37,13 @@ mutation updateRoomData($fields: UpsertRoomRequest!) {
 """
 
 
-# -----------PRIVATE BUILDERS-----------
+# -- PRIVATE HELPERS » NO TOUCHY!
 def _make_room_name(base: str | None, n: int, sep: str = " ") -> str:
     base = (base or "").strip()
     return f"{base}{sep}{n}" if base else str(n)
 
 
-# -----------PUBLIC RENDERERS-----------
+# -- PUBLIC FUNCTIONS
 def create_rooms(
     count: int,
     base_name: str = "None",

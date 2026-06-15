@@ -8,26 +8,31 @@ from rich.console import Console
 from typing import Union
 from datetime import datetime
 
+# -- load env vars
 
-# ------------------
-# load environment variables
-# ------------------
 load_dotenv()
 
-# ------------------
-# configure global logging with color-coded output
-# ------------------
+# -- configure global logging & color-coded output
+
 logger = logging.getLogger("lens_api")
 coloredlogs.install(
     level="DEBUG",
     logger=logger,
     fmt="%(asctime)s | [%(levelname)s] | %(message)s",
+    field_styles={
+        "asctime": {"color": "white", "faint": True},
+        "levelname": {"color": "cyan", "bold": True},
+    },
+    level_styles={
+        "info": {"color": "white"},
+        "debug": {"color": "magenta"},
+        "warning": {"color": "yellow"},
+        "error": {"color": "red", "bold": True},
+    },
 )
 
 
-# ------------------
-# validate .env variables loaded correctly
-# ------------------
+# -- validate env vars load aight
 def get_required_env(var_name: str) -> str:
     value = os.getenv(var_name)
     if value is None or value.strip() == "":
@@ -36,9 +41,7 @@ def get_required_env(var_name: str) -> str:
     return value
 
 
-# ------------------
-# helper functions for CLI tool formatting
-# ------------------
+# -- cli tool formatting helpers
 INDENT = "  "
 TS_STYLE = "dim grey70"
 console = Console()
@@ -132,8 +135,11 @@ def _render_dict(d: dict, pad_braces: bool = False) -> Text:
 
 
 def pretty_node_deets(
-    node: dict, label: str = "Node", pad_braces: bool = False
+    node: dict,
+    label: str = "Node",
+    pad_braces: bool = False,
+    label_style: str = "green",
 ) -> None:
-    line = Text.assemble((label + " ", "green"), ("→ ", "white"))
+    line = Text.assemble((label + " ", label_style), ("→ ", "white"))
     line.append_text(_render_dict(node, pad_braces=pad_braces))
     console_log(line)

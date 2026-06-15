@@ -214,10 +214,7 @@ def resolve_site(
     site_name_to_id: dict[str, str],
     site_id_to_name: dict[str, str],
 ):
-    """
-    resolve a siteId by: [1] Env override, [2] .csv provided Id, [3] querying by .csv name
-    if query doesn't find by name, it creates the site, and the room will be assigned to it
-    """
+
     csv_site_id = (
         auth.SITE_ID
         if auth.SITE_ID
