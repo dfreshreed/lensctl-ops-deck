@@ -8,25 +8,26 @@ from rich.panel import Panel
 from rich.live import Live
 from rich.align import Align
 from utils.ascii import LATER_DUDE
-from utils.auth import get_client_details, CLIENT_ID
+from utils.auth import get_client_details, CLIENT_ID, fetch_tenant_name
 from utils.env_helper import print_indented
 from utils.room_ops import export_rooms, update_rooms
 from utils.bulk_create import create_rooms
 from utils.site_ops import create_site_if_not_exists
 from utils.compliance_ops import check_compliance
 
-# -----------GLOBALS-----------
+# -- GLOBALS
 
 INITIAL_LOOP = True
 IDENTITY = None
 FLASH = ""
-# -----------CLI MENU-----------
+# -- CLI MENU
 
 console = panels._console()
 
-# -----------PRIVATE BUILDERS-----------
+# -- PRIVATE HELPERS » NO TOUCHY!
 
 
+# TODO: refactor to use input_helpers
 def _ask_int(
     label: str,
     default: int,
@@ -69,12 +70,13 @@ def _ask_str(
     return raw
 
 
-# -----------PUBLIC RENDERERS-----------
+# -- PUBLIC FUNCTIONS
 
 
 def bootup():
     global INITIAL_LOOP
     global IDENTITY
+
     steps = (
         [
             "[red][SYS][/red] Activating core processors...",
@@ -98,7 +100,16 @@ def bootup():
     try:
         IDENTITY = get_client_details(CLIENT_ID)
     except Exception as exc:
-        IDENTITY = {"name": "Unknown credential", "role": "", "error": str(exc)}
+        IDENTITY = {
+            "name": "Unknown credential",
+            "role": "Unknown role",
+            "error": str(exc),
+        }
+
+    try:
+        IDENTITY["tenant_name"] = fetch_tenant_name() or "Unknown tenant"
+    except Exception:
+        IDENTITY["tenant_name"] = "Unknown tenant"
 
     with Live(console=console, refresh_per_second=4, screen=True) as live:
         for i, step in enumerate(steps, 1):
@@ -159,6 +170,7 @@ def prompt_create_rooms() -> dict:
 
 def main():
     bootup()
+    tenant_name = IDENTITY.get("tenant_name", "") if IDENTITY else ""
     while True:
         console.clear()
         console.print(
@@ -166,15 +178,21 @@ def main():
         )
 
         choice = input_prompt("Enter task selection [0,1,2,3,4] > ")
-        console.print()
+
         if choice == panels.SECRET_CODE:
             toggle_dark_mode()
             continue
         if choice == "1":
-            console.print("[ok] Exporting Rooms...[/ok]")
+            console.print(
+                f"[ok]Exporting Rooms...[/ok] {tenant_name} » room_data.csv \n"
+            )
+            time.sleep(0.8)
             export_rooms()
         elif choice == "2":
-            console.print("[ok] Updating Room Metadata...[/ok]")
+            console.print(
+                f"[ok]Updating Room Records...[/ok] room_data.csv » {tenant_name} \n"
+            )
+
             update_rooms()
         elif choice == "3":
             params = prompt_create_rooms()
@@ -198,7 +216,7 @@ def main():
                     )
                     time.sleep(0.8)
                     continue
-            console.print("[ok] Creating Rooms...[/ok]")
+            console.print("[ok]Creating rooms in bulk...[/ok] \n")
             create_rooms(**params, siteId=site_id)
             time.sleep(0.8)
         elif choice == "4":

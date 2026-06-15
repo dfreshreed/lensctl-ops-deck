@@ -10,12 +10,12 @@ from rich.theme import Theme
 from utils.ascii import LIGHT_ASCII, DARK_ASCII
 from utils.env_helper import get_required_env
 
-# -----------GLOBAL FEATURE FLAGS-----------
+# -- GLOBAL FEATURE FLAGS
 SECRET_CODE = "66"
 DARK_MODE = False
 BANNER_SHOWN = False
 
-# -----------THEMES-----------
+# -- THEMES
 LIGHT = Theme(
     {
         "accent": "bold #89B4FA",  # blue
@@ -31,7 +31,7 @@ LIGHT = Theme(
 
 DARK = Theme(
     {
-        "accent": "bold #F38BA8",  # pink/red
+        "accent": "bold #F38BA8",  # red
         "muted": "#A6ADC8",
         "ok": "bold #A6E3A1",
         "warn": "bold #FAB387",
@@ -62,7 +62,7 @@ def get_mode():
         }
 
 
-# -----------PRIVATE BUILDERS-----------
+# -- PRIVATE HELPERS » NO TOUCHY!
 
 
 def _status_badges(status_text="ONLINE", api_text="", identity: dict | None = None):
@@ -79,22 +79,25 @@ def _status_badges(status_text="ONLINE", api_text="", identity: dict | None = No
     )
     t.add_row(
         _key_value_line(
-            "API EP",
+            "API Endpoint",
             f" {api_text}",
         ),
     )
     if identity:
         name = identity.get("name", "")
-        role = identity.get("role") or "No role"
+        role = identity.get("role", "")
+        tenant_name = identity.get("tenant_name", "")
+
+        t.add_row(_key_value_line("Tenant", f" {tenant_name}"))
         t.add_row(
             _key_value_line(
-                "API Creds Name",
+                "Credential Name",
                 f" {name}",
             ),
         )
         t.add_row(
             _key_value_line(
-                "API Creds Role" + "",
+                "Credential Role" + "",
                 f" {role}",
             ),
         )
@@ -102,21 +105,23 @@ def _status_badges(status_text="ONLINE", api_text="", identity: dict | None = No
 
 
 def _tasks(selected: int | None = None):
-    # Task definitions: (label, description)
     tasks = [
-        ("Exit", "Close the application"),
+        ("[bold red]Exit[/bold red]", "Close the application"),
         (
-            f"Export Lens Rooms [bold cyan]>>[/bold cyan] CSV",
-            "Export all room metadata to a CSV file",
+            "[bold cyan]Export[/bold cyan] Room Records[bold cyan] to[/bold cyan] CSV",
+            "Export all room records to a CSV file",
         ),
         (
-            "Update Lens Rooms [bold cyan]<<[/bold cyan] CSV",
-            "Update room metadata from a CSV file",
+            "[bold cyan]Import[/bold cyan] Room Records [bold cyan]from[/bold cyan] CSV",
+            "Create or update room records from a CSV file",
         ),
-        ("Create Rooms (bulk)", "Create multiple rooms with auto generated names"),
         (
-            "Export Lens Desktop Policy Compliance",
-            "Analyze device compliance against policy baseline",
+            "[bold cyan]Create[/bold cyan] Rooms in bulk",
+            "Bulk create sequentially numbered rooms from a base name",
+        ),
+        (
+            "[bold cyan]Export[/bold cyan] Desktop App Policy Compliance [bold cyan]to[/bold cyan] CSV",
+            "Analyze Desktop App devices for software version compliance",
         ),
     ]
 
@@ -173,7 +178,7 @@ def _key_value_line(
     )
     grid.add_column(style=value_style)
     value = (
-        Text(value, style=value_style, overflow="fold")
+        Text(value, style=value_style, overflow="ellipsis", no_wrap=True)
         if isinstance(value, str)
         else value
     )
@@ -182,7 +187,7 @@ def _key_value_line(
     return grid
 
 
-# -----------PUBLIC RENDERERS-----------
+# -- PUBLIC FUNCTIONS
 
 
 def toggle_theme() -> None:

@@ -6,9 +6,8 @@ from utils.env_helper import get_required_env, logger
 from typing import Optional, Dict, Any
 
 install()  # colorize uncaught exceptions and tracebacks
-# -------------------------
-# config constants
-# -------------------------
+
+# -- config constants
 
 # lens GQL and Auth endpoints
 TOKEN_URL = get_required_env("AUTH_URL")
@@ -37,10 +36,16 @@ query ClientCredential($clientCredentialId: String!) {
 }
 """
 
-# ---------------------------------
-# internal private module helpers
-# no touchy
-# ---------------------------------
+GET_TENANT_NAME = """
+query TenantName($tenantId: ID!) {
+  tenant(id: $tenantId) {
+    name
+  }
+}
+"""
+
+
+# -- PRIVATE HELPERS » NO TOUCHY!
 
 _token_cache: Optional[str] = None
 _headers: Dict[str, str] = {"content-type": "application/json"}
@@ -51,10 +56,9 @@ def _get_session() -> requests.Session:
     global _session
     if _session is None:
         _session = requests.Session()
-        # config connection pool for concurrent requests
         # pool_maxsize should be >= max_wakers in ThreadPoolExecutor
         adapter = HTTPAdapter(
-            pool_connections=50,  # cach for 50 different hosts
+            pool_connections=50,  # cache for 50 different hosts
             pool_maxsize=50,  # allow up to 50 concurrent connections per host
         )
         _session.mount("https://", adapter)
@@ -89,9 +93,7 @@ def _token_request() -> str:
     return token
 
 
-# ---------------------------------
-# public functions used in project
-# ---------------------------------
+# -- PUBLIC FUNCTIONS
 
 
 def get_headers() -> Dict[str, Any]:
@@ -112,6 +114,13 @@ def execute_gql(
         logger.error(f"GraphQL request failed...whomp: {exception}{response.text}")
         raise
     return response.json()
+
+
+def fetch_tenant_name() -> str | None:
+    data = execute_gql(GET_TENANT_NAME, {"tenantId": TENANT_ID})
+    if data.get("errors"):
+        raise RuntimeError(str(data["errors"]))
+    return (data.get("data") or {}).get("tenant", {}).get("name")
 
 
 def get_client_details(client_id: str, *, timeout: int = 10) -> Dict[str, Any]:
