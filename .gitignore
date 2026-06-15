@@ -11,3 +11,6 @@ __pycache__/
 .DS_Store
 
 lens-desktop-compliance*.csv
+desktop-app-compliance*.csv
+
+dev.md
