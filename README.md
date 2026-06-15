@@ -181,17 +181,17 @@ lensctl-ops-deck/
 
 ## 📦 Requirements
 
-### Python 3.10+
+### Python 3.11+
 
-If you don't already have Python 3.10+ installed on your system, you'll need to install it first. Visit [python.org](https://www.python.org/downloads/) for the latest installers.
+If you don't already have Python 3.11+ installed on your system, you'll need to install it first. Visit [python.org](https://www.python.org/downloads/) for the latest installers.
 
-> When manually installing Python 3.10+, make sure to **add Python to your system's PATH** during installation
+> When manually installing Python 3.11+, make sure to **add Python to your system's PATH** during installation
 
 - **On Windows:** the Python installer provides the option **"Add Python to PATH"** -- be sure to check the box during setup
 
 - **On MacOS:** the Python installer usually handles PATH setup. You might need to add Python to your shell profile manually if using a package manager like **Homebrew**
 
-After installing Python 3.10+, confirm it's installed by running `python --version` (or `python3 --version` on macOS/Linux)
+After installing Python 3.11+, confirm it's installed by running `python --version` (or `python3 --version` on macOS/Linux)
 
 ### Dependencies found in `requirements.txt`
 
